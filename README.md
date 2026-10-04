@@ -5,7 +5,7 @@ Ein übersichtlicher, datenschutzfreundlicher Kalender für Handy (Android / iod
 - **Ansichten:** Tag, Mo–Fr, Woche, Kacheln (Sa + So in einer Kachel), Monat (zeitgetreu), Wochennummern
 - **Kalender:** CalDAV (Infomaniak, iCloud, Nextcloud, …) lesen und schreiben, Abo-Links (.ics) wie der ZHAW-Stundenplan, Kalender nur auf dem Gerät
 - **Planung:** Aufgaben in den Kalender ziehen, Tagesplaner, Kalender-Sets, Erinnerungen
-- **Datenschutz:** kein eigener Server, kein Tracking, keine Google-Schriften. Termine liegen auf deinen Geräten und bei deinen Kalender-Anbietern. Zugangsdaten bleiben in der App auf dem Gerät.
+- **Datenschutz:** kein eigener Server, kein Tracking, nichts von Google (keine Google-Dienste, keine Google-Schriften; der Bau bricht ab, falls je ein Google-Verweis auftaucht). Termine liegen auf deinen Geräten und bei deinen Kalender-Anbietern. Zugangsdaten bleiben in der App auf dem Gerät.
 
 ## Installieren
 Unter **Releases** liegt jede Version:

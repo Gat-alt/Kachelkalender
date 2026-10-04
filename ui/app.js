@@ -27,7 +27,6 @@ window.KK_EMPTY = () => ({
 
 window.KK_note = (k, t) => ({
   ms: "Die Microsoft-Anmeldung kommt mit einem der nächsten Updates. Bis dahin geht es so: In Outlook im Web unter Einstellungen → Kalender → Freigegebene Kalender → «Kalender veröffentlichen» einen ICS-Link erstellen und ihn hier als «Abo-Link (.ics)» hinzufügen (nur lesen). Für das ZHAW-Konto braucht es die Freigabe der ZHAW.",
-  google: "Die Google-Anmeldung kommt mit einem der nächsten Updates. Bis dahin: In Google Kalender → Einstellungen → dein Kalender → «Privatadresse im iCal-Format» kopieren und hier als «Abo-Link (.ics)» hinzufügen (nur lesen).",
   ics: "Nur lesen. Wird beim Öffnen und alle 15 Minuten aktualisiert.",
   local: "Termine bleiben nur auf diesem Gerät."
 }[k] || (t.note + " Zugangsdaten bleiben nur auf diesem Gerät."));
@@ -275,7 +274,7 @@ const sig = e => JSON.stringify([e.title, e.date, e.edate || "", !!e.allDay, e.s
 
 /* ---------- Kalender hinzufügen ---------- */
 window.KK_connect = async ({ type, name, color, f }) => {
-  if (type === "ms" || type === "google") throw new Error(window.KK_note(type, {}));
+  if (type === "ms") throw new Error(window.KK_note(type, {}));
   const S = K.S;
   if (type === "ics") {
     let url = (f.url || "").trim().replace(/^webcal:\/\//i, "https://");
