@@ -1,6 +1,6 @@
 [package]
 name = "kachelkalender"
-version = "0.1.4"
+version = "0.1.5"
 description = "Kachelkalender – datenschutzfreundlicher Kalender"
 edition = "2021"
 
