@@ -13,7 +13,7 @@ Unter **Releases** liegt jede Version:
 - Mac: `.dmg` · Windows: `.exe` · Linux: `.AppImage` oder `.deb`
 
 ## Neue Version
-Eine neue Version entsteht, wenn ein Tag `v…` gesetzt wird (z. B. `v0.2.0`). GitHub baut dann automatisch alle Dateien.
+Eine neue Version entsteht, wenn die Versionsnummer in `src-tauri/tauri.conf.json` erhöht wird (z. B. `0.2.0`). GitHub baut dann automatisch alle Dateien und legt sie unter Releases ab.
 
 ## Aufbau
 - `ui/kalender.html` – die Kalender-Oberfläche

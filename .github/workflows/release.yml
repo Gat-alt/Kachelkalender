@@ -1,10 +1,12 @@
-# Baut Kachelkalender für alle Geräte, sobald eine neue Version (Tag v…) entsteht,
-# und legt die Dateien unter «Releases» ab. Obtainium holt sich dort die Handy-Updates.
+# Baut Kachelkalender für alle Geräte, sobald die Versionsnummer in src-tauri/tauri.conf.json steigt,
+# und legt die Dateien unter «Releases» (Tag v<Version>) ab. Obtainium holt sich dort die Handy-Updates.
 name: App bauen
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: ["src-tauri/tauri.conf.json"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -44,17 +46,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Kachelkalender ${{ github.ref_name }}"
+          tagName: v__VERSION__
+          releaseName: "Kachelkalender v__VERSION__"
           releaseBody: "Handy (iodéOS/Android): .apk – am einfachsten über Obtainium. Mac: .dmg · Windows: .exe · Linux: .AppImage oder .deb"
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
 
   android:
+    needs: desktop
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Version lesen
+        run: echo "APP_VERSION=v$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -96,10 +101,10 @@ jobs:
         if: steps.key.outputs.ok == 'true'
       - name: Datei benennen
         if: steps.key.outputs.ok == 'true'
-        run: cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "Kachelkalender-${GITHUB_REF_NAME}.apk"
+        run: cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "Kachelkalender-${APP_VERSION}.apk"
       - uses: softprops/action-gh-release@v2
         if: steps.key.outputs.ok == 'true'
         with:
-          tag_name: ${{ github.ref_name }}
-          name: "Kachelkalender ${{ github.ref_name }}"
+          tag_name: ${{ env.APP_VERSION }}
+          name: "Kachelkalender ${{ env.APP_VERSION }}"
           files: Kachelkalender-*.apk
