@@ -1,0 +1,96 @@
+# Baut Kachelkalender für alle Geräte, sobald eine neue Version (Tag v…) entsteht,
+# und legt die Dateien unter «Releases» ab. Obtainium holt sich dort die Handy-Updates.
+name: App bauen
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+          - platform: windows-latest
+            args: ""
+          - platform: ubuntu-22.04
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - name: Linux-Bibliotheken
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Kachelkalender ${{ github.ref_name }}"
+          releaseBody: "Handy (iodéOS/Android): .apk – am einfachsten über Obtainium. Mac: .dmg · Windows: .exe · Linux: .AppImage oder .deb"
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Android NDK
+        run: |
+          sdkmanager --install "ndk;27.0.12077973"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+      - run: npm ci
+      - run: npx tauri android init --ci
+      - name: App-Symbol fürs Handy
+        run: npx tauri icon scripts/icon.png
+      - name: App signieren (gleicher Schlüssel für jedes Update)
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/kachelkalender.jks"
+          printf "keyAlias=kachelkalender\npassword=%s\nstoreFile=%s\n" "$ANDROID_KEY_PASSWORD" "$RUNNER_TEMP/kachelkalender.jks" > src-tauri/gen/android/keystore.properties
+          node scripts/android-signing.mjs
+      - run: npx tauri android build --apk --target aarch64 --target armv7
+      - name: Datei benennen
+        run: cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "Kachelkalender-${GITHUB_REF_NAME}.apk"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Kachelkalender ${{ github.ref_name }}"
+          files: Kachelkalender-*.apk
