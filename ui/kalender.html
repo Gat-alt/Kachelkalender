@@ -28,6 +28,10 @@ html{transition:background-color .25s ease}
   --bg:#0f1318; --surface:#171c23; --surface-2:#1d232b; --line:#2a323d; --fg:#e8edf3; --muted:#97a3b3;
   --accent:#6c9cff; --accent-ink:#0b1220; --today:#6c9cff; --gap-line:#3a4452; --holiday:#e0a35a;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35); color-scheme:dark }}
+:root[data-theme="dim"]{
+  --bg:#2a303a; --surface:#343b47; --surface-2:#3b4350; --line:#4b5464; --fg:#f2f5f9; --muted:#b5bfcc;
+  --accent:#8fb0ff; --accent-ink:#141a24; --today:#9bb8ff; --gap-line:#5a6475; --holiday:#ebb472;
+  --shadow:0 1px 2px rgba(0,0,0,.25),0 6px 18px rgba(0,0,0,.22); color-scheme:dark }
 :root[data-theme="dark"]{
   --bg:#0f1318; --surface:#171c23; --surface-2:#1d232b; --line:#2a323d; --fg:#e8edf3; --muted:#97a3b3;
   --accent:#6c9cff; --accent-ink:#0b1220; --today:#6c9cff; --gap-line:#3a4452; --holiday:#e0a35a;
@@ -502,7 +506,7 @@ html.solid .month .ev,.month .ev.hl{background:var(--c);color:var(--ci)}
 /* Schnelleingabe, Warnung, mehrtägig */
 .ev-hint{font-size:.84em;color:var(--fg);background:color-mix(in srgb,var(--accent) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:10px;padding:7px 10px;margin-top:-4px;line-height:1.4}
 .ev-warn{font-size:.85em;font-weight:600;color:#b45309;background:rgba(217,119,6,.12);border-radius:10px;padding:7px 10px}
-:root[data-theme="dark"] .ev-warn{color:#f5b041}
+:root[data-theme="dark"] .ev-warn,:root[data-theme="dim"] .ev-warn{color:#f5b041}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .ev-warn{color:#f5b041}}
 .ev-span{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--muted)}
 .ev-span[hidden]{display:none}
@@ -766,7 +770,7 @@ body.tdragging,body.tdragging *{cursor:grabbing!important;user-select:none!impor
     <h2 id="set-h">Einstellungen</h2>
     <div class="form">
       <div class="row2">
-        <label>Darstellung<select id="set-theme"><option value="">Wie System</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></label>
+        <label>Darstellung<select id="set-theme"><option value="">Wie System</option><option value="light">Hell</option><option value="dim">Mittel (Schiefer)</option><option value="dark">Dunkel</option></select></label>
         <label>Schriftgrösse<select id="set-font"><option value="13px">Klein</option><option value="14.5px">Mittel</option><option value="16px">Gross</option><option value="18px">Sehr gross</option></select></label>
       </div>
       <label>Termin-Farben<select id="set-style"><option value="tint">Hell mit Farbrand (wie Woche)</option><option value="fill">Voll eingefärbt (wie Monat)</option></select></label>
@@ -1596,10 +1600,12 @@ $("set-addcal").onclick=()=>{$("set-scrim").hidden=true;openCalSheet()};
 $("set-close").onclick=()=>$("set-scrim").hidden=true;
 const bindSet=(id,key,fn=v=>v)=>$(id).addEventListener("change",e=>{S.set[key]=fn(e.target.type==="checkbox"?e.target.checked:e.target.value);save();render()});
 bindSet("set-theme","theme");
-const isDark=()=>S.set.theme?S.set.theme==="dark":!!(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);
-function themeBtn(){const d=isDark();$("theme-btn").innerHTML=d?'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Hell':'<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>Dunkel';
-  $("theme-btn").setAttribute("aria-label",d?"Zu hell wechseln":"Zu dunkel wechseln")}
-$("theme-btn").onclick=()=>{S.set.theme=isDark()?"light":"dark";save();render();themeBtn();toast(S.set.theme==="dark"?"Dunkel":"Hell",null,1000)};
+const curTheme=()=>S.set.theme||((window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light");
+const TH={light:["Hell",'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>'],
+  dim:["Mittel",'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>'],
+  dark:["Dunkel",'<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>']};
+function themeBtn(){const t=curTheme(),[n,ic]=TH[t];$("theme-btn").innerHTML=ic+n;$("theme-btn").setAttribute("aria-label",`Darstellung: ${n}. Tippen zum Wechseln`)}
+$("theme-btn").onclick=()=>{const o=["light","dim","dark"];S.set.theme=o[(o.indexOf(curTheme())+1)%3];save();render();themeBtn();toast(TH[S.set.theme][0],null,1000)};
 if(window.matchMedia)matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>themeBtn());
 $("set-theme").addEventListener("change",()=>themeBtn());themeBtn();bindSet("set-style","style");bindSet("set-rot","rot");bindSet("set-font","font");bindSet("set-gaps","gaps");bindSet("set-kw","kw");bindSet("set-hol","hol");bindSet("set-remind","remind",Number);
 $("colors").addEventListener("click",e=>{const b=e.target.closest("[data-sw]");if(!b)return;calOf(b.dataset.sw).color=b.dataset.color;save();renderSettings();render()});
