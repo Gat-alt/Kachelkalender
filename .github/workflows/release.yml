@@ -78,18 +78,27 @@ jobs:
       - run: npx tauri android init --ci
       - name: App-Symbol fürs Handy
         run: npx tauri icon scripts/icon.png
-      - name: App signieren (gleicher Schlüssel für jedes Update)
+      - name: Signatur-Passwort vorhanden?
+        id: key
         env:
-          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "$ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/kachelkalender.jks"
+          if [ -n "$ANDROID_KEY_PASSWORD" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "::warning::Secret ANDROID_KEY_PASSWORD fehlt – Handy-Version wird übersprungen"; echo "ok=false" >> "$GITHUB_OUTPUT"; fi
+      - name: App signieren (gleicher Schlüssel für jedes Update)
+        if: steps.key.outputs.ok == 'true'
+        env:
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android/kachelkalender.jks.enc -out "$RUNNER_TEMP/kachelkalender.jks" -pass env:ANDROID_KEY_PASSWORD
           printf "keyAlias=kachelkalender\npassword=%s\nstoreFile=%s\n" "$ANDROID_KEY_PASSWORD" "$RUNNER_TEMP/kachelkalender.jks" > src-tauri/gen/android/keystore.properties
           node scripts/android-signing.mjs
       - run: npx tauri android build --apk --target aarch64 --target armv7
+        if: steps.key.outputs.ok == 'true'
       - name: Datei benennen
+        if: steps.key.outputs.ok == 'true'
         run: cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "Kachelkalender-${GITHUB_REF_NAME}.apk"
       - uses: softprops/action-gh-release@v2
+        if: steps.key.outputs.ok == 'true'
         with:
           tag_name: ${{ github.ref_name }}
           name: "Kachelkalender ${{ github.ref_name }}"
