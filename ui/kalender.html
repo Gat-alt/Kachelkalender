@@ -877,6 +877,16 @@ body.tdragging,body.tdragging *{cursor:grabbing!important;user-select:none!impor
 <div class="toast" id="toast" hidden></div>
 
 <script>
+/* Sicherheitsnetz: Blockiert die App-Hülle style="…"-Attribute (CSP), werden sie hier per JS nachgetragen.
+   Ohne das stehen auf dem Handy z. B. die Wochentage untereinander statt nebeneinander. */
+(function(){
+  const one=e=>{const a=e.getAttribute("style");if(a&&!e.style.cssText)e.style.cssText=a};
+  const all=n=>{if(n.nodeType!==1)return;if(n.hasAttribute("style"))one(n);n.querySelectorAll("[style]").forEach(one)};
+  new MutationObserver(ms=>ms.forEach(m=>{if(m.type==="attributes")one(m.target);else m.addedNodes.forEach(all)}))
+    .observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["style"]});
+  if(document.body)all(document.body);
+})();
+
 (function(){
 const $=id=>document.getElementById(id);
 const PALETTE=["#1f5fd1","#0e9aa7","#12a150","#6aa121","#c9a20a","#e07a1f","#d9482b","#d6336c","#b03bbf","#7b4fd6","#4c5bd4","#2b8bd8","#0f766e","#7c5c3a","#64748b","#334155","#be123c","#9a6c00"];
