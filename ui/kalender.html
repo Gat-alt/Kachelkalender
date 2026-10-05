@@ -685,6 +685,23 @@ body.tdragging,body.tdragging *{cursor:grabbing!important;user-select:none!impor
   html.land .tiles.fit .tile-weekend .half + .half{border-top:0;padding-top:0;border-left:1px dashed var(--line);padding-left:6px}
   html.land .tiles .dh .dnum{font-size:1.15em}
 }
+
+/* Spracheingabe 🎤 */
+.mic{position:fixed;right:20px;bottom:calc(92px + env(safe-area-inset-bottom,0px));width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--fg);box-shadow:var(--shadow);z-index:20;display:grid;place-items:center;transition:background .2s ease,color .2s ease,transform .15s ease}
+.mic svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;position:relative;z-index:1}
+.mic:active{transform:scale(.94)}
+.mic[data-s="rec"]{background:#e5484d;color:#fff;border-color:transparent}
+.mic[data-s="rec"] .mic-ring{position:absolute;inset:-6px;border-radius:50%;border:2px solid #e5484d;animation:micPulse 1.2s ease-out infinite}
+.mic[data-s="busy"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.mic[data-s="busy"] svg{animation:micBusy 1s ease-in-out infinite}
+@keyframes micPulse{from{transform:scale(.85);opacity:1}to{transform:scale(1.35);opacity:0}}
+@keyframes micBusy{50%{opacity:.35}}
+@media (max-width:860px),(max-height:500px){.mic{right:24px;bottom:calc(126px + env(safe-area-inset-bottom,0px));width:44px;height:44px}}
+html.land .mic{right:12px;bottom:60px;width:38px;height:38px}
+html[data-v="tiles"] .mic{bottom:calc(66px + env(safe-area-inset-bottom,0px))}
+html.land[data-v="tiles"] .mic{bottom:10px}
+@media (min-width:861px) and (min-height:501px){html[data-v="tiles"] .mic{bottom:20px}}
+body.placing .mic{opacity:0;pointer-events:none}
 </style>
 
 <div class="app" lang="de">
@@ -740,6 +757,7 @@ body.tdragging,body.tdragging *{cursor:grabbing!important;user-select:none!impor
 </div>
 
 <button class="fab" id="fab" aria-label="Neuer Termin">+</button>
+<button class="mic" id="mic" data-s="idle" aria-label="Termin sprechen"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="mic-ring" aria-hidden="true"></span></button>
 
 <nav class="bottombar" aria-label="Navigation">
   <button id="bb-tasks" data-bb><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg><span>Aufgaben</span><i class="badge num" id="bb-badge"></i></button>
@@ -1380,8 +1398,30 @@ function openEditor(e,ds){
 /* ---------- Schnelleingabe in normaler Sprache ---------- */
 let qDef=null,qActive=false;
 const WDN=[["so","sonntag"],["mo","montag"],["di","dienstag"],["mi","mittwoch"],["do","donnerstag"],["fr","freitag"],["sa","samstag"]];
+/* Gesprochenes (Spracheingabe) in die Kurzform übersetzen: «eine Stunde» → 1h, «halb drei» → 2:30 usw. */
+const NUMW={ein:1,eins:1,eine:1,einer:1,einem:1,zwei:2,drei:3,vier:4,"fünf":5,sechs:6,sieben:7,acht:8,neun:9,zehn:10,elf:11,"zwölf":12,dreizehn:13,vierzehn:14,"fünfzehn":15,sechzehn:16,siebzehn:17,achtzehn:18,neunzehn:19,zwanzig:20,dreissig:30,"dreißig":30,vierzig:40,"fünfundvierzig":45,"fünfzig":50};
+function spoken(x){
+  const W=Object.keys(NUMW).sort((a,b)=>b.length-a.length).join("|"),n=w=>NUMW[w.toLowerCase()]!=null?NUMW[w.toLowerCase()]:+w;
+  x=" "+x+" ";
+  x=x.replace(/([a-zäöüß])[,;!?]+(?=\s)/gi,"$1").replace(/([a-zäöüß])\.(?=\s)/gi,"$1");
+  x=x.replace(/\s(?:eine\s+)?halbe\s+stunde(?=\s)/gi," 30 min").replace(/\s(?:eine\s+)?dreiviertel\s*stunde(?=\s)/gi," 45 min")
+     .replace(/\s(?:anderthalb|eineinhalb|ein\s+und\s+eine\s+halbe)\s+stunden?(?=\s)/gi," 1.5 h");
+  x=x.replace(new RegExp("\\s("+W+"|\\d+)\\s+(stunden?|minuten)(?=\\s)","gi"),(m,a,u)=>" "+n(a)+(/^s/i.test(u)?" h":" min"));
+  x=x.replace(new RegExp("\\shalb\\s+("+W+"|\\d{1,2})(?:\\s+uhr)?(?=\\s)","gi"),(m,a)=>" "+((n(a)+23)%24)+":30 ");
+  x=x.replace(new RegExp("\\sviertel\\s+nach\\s+("+W+"|\\d{1,2})(?:\\s+uhr)?(?=\\s)","gi"),(m,a)=>" "+n(a)+":15 ");
+  x=x.replace(new RegExp("\\sviertel\\s+vor\\s+("+W+"|\\d{1,2})(?:\\s+uhr)?(?=\\s)","gi"),(m,a)=>" "+((n(a)+23)%24)+":45 ");
+  x=x.replace(/\s(\d{1,2})\s*uhr\s+(\d{1,2})(?=\s)/gi,(m,h,mm)=>" "+h+":"+mm.padStart(2,"0")+" uhr");
+  x=x.replace(new RegExp("\\s(?:um\\s+)?("+W+")\\s+uhr(?=\\s)","gi"),(m,a)=>" um "+n(a)+" uhr");
+  // nachmittags/abends: 3 Uhr → 15 Uhr
+  x=x.replace(/\s(\d{1,2})(:\d{2})?(\s*uhr)?\s+(?:am\s+)?(nachmittags?|abends?|am abend|am nachmittag)(?=\s)/gi,(m,h,mm,u)=>" "+(+h<12?+h+12:+h)+(mm||"")+" uhr");
+  // «um drei» meint im Alltag 15 Uhr: 1–7 Uhr ohne «morgens/früh/nachts» → Nachmittag
+  if(!/\s(morgens|früh|frueh|nachts|vormittags?|in der früh|am morgen)(?=\s)/i.test(x))
+    x=x.replace(/\s(\d{1,2})(:\d{2})(?=\s)|\s(\d{1,2})(\s*uhr)(?=\s)/gi,(m,h1,m1,h2,u)=>{const h=+(h1||h2);return h>=1&&h<=7?" "+(h+12)+(m1||u):m});
+  else x=x.replace(/\s(morgens|früh|frueh|nachts|vormittags?|in der früh|am morgen)(?=\s)/gi," ");
+  return x.replace(/\s+/g," ").trim();
+}
 function parseQuick(raw){
-  let t=" "+raw+" ";const r={found:[]},today=new Date();today.setHours(0,0,0,0);
+  let t=" "+spoken(raw)+" ";const r={found:[]},today=new Date();today.setHours(0,0,0,0);
   const cut=(re,fn)=>{const m=t.match(re);if(!m)return false;const v=fn(m);if(v===false)return false;t=t.replace(m[0]," ");return true};
   const yr=y=>!y?today.getFullYear():(y.length===2?2000+ +y:+y);
   const mkD=(d,m,y)=>{let x=new Date(yr(y),m-1,d);if(!y&&x<today)x=new Date(today.getFullYear()+1,m-1,d);return x};
@@ -1995,5 +2035,45 @@ addEventListener("online",net);addEventListener("offline",net);net();
 setInterval(()=>{if(view==="day"||view==="grid"||view==="work")render()},60000);
 render();
 if(window.KK_APP)window.KK_APP({get S(){return S},save,render,toast,calOf,uid,PALETTE,SRC,parse,ymd,addDays,toMin,mins,esc,$,expanded,visible,cursorDate:()=>cursor});
+/* ---------- Spracheingabe: Whisper auf dem Gerät, keine Aufnahme verlässt das Handy ---------- */
+{
+  const mic=$("mic"),WKEY=KEY+"-whisper";let W=null,rec=null,chunks=[],stream=null,stopT=null;
+  const st=s=>{mic.dataset.s=s;mic.setAttribute("aria-label",{idle:"Termin sprechen",rec:"Aufnahme beenden",busy:"Wird erkannt …"}[s])};
+  const ready=()=>{try{return localStorage.getItem(WKEY)==="1"}catch(e){return false}};
+  const mod=async()=>{if(!W)W=await import("./whisper.mjs");return W};
+  const mb=n=>Math.round(n/1e6);
+  async function begin(){
+    try{stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}})}
+    catch(e){toast("Kein Zugriff aufs Mikrofon","Bitte die Mikrofon-Erlaubnis für Kachelkalender erlauben.",5000);return}
+    chunks=[];rec=new MediaRecorder(stream);rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};rec.onstop=finish;rec.start();
+    st("rec");toast("Ich höre zu …","Z. B. «Morgen um 14 Uhr Zahnarzt, eine Stunde». Nochmals tippen zum Beenden.",20000);
+    stopT=setTimeout(()=>{if(rec&&rec.state==="recording")rec.stop()},20000);
+    mod().then(w=>w.load(prog)).catch(()=>{}); // Modell schon während des Sprechens vorbereiten
+  }
+  function prog(f,t){if(mic.dataset.s==="busy"&&t)toast("Spracheingabe wird eingerichtet … "+Math.round(f*100)+" %","Einmalig ca. "+mb(t)+" MB. Danach geht es offline.",60000)}
+  async function finish(){
+    clearTimeout(stopT);stream&&stream.getTracks().forEach(t=>t.stop());stream=null;st("busy");
+    const blob=new Blob(chunks,{type:(rec&&rec.mimeType)||"audio/webm"});rec=null;chunks=[];
+    try{
+      const w=await mod();if(!w.isReady())toast("Spracheingabe wird eingerichtet …","Einmalig, danach offline.",60000);
+      await w.load(prog);toast("Wird erkannt …","",30000);
+      const text=await w.transcribe(blob);
+      try{localStorage.setItem(WKEY,"1")}catch(e){}
+      $("toast").hidden=true;st("idle");
+      if(!text||text.length<2){toast("Nichts verstanden","Bitte nochmals deutlich sprechen.",3500);return}
+      newAt(view==="day"?ymd(cursor):ymd(new Date()));
+      $("ev-title").value=text.replace(/[.!]+$/,"");$("ev-title").dispatchEvent(new Event("input"));
+    }catch(e){st("idle");
+      toast("Spracheingabe gerade nicht möglich",String(e&&e.message||e).includes("fetch")||!navigator.onLine?"Für die Einrichtung braucht es einmal Internet (WLAN empfohlen).":"Bitte später nochmals versuchen.",6000)}
+  }
+  mic.onclick=()=>{
+    if(mic.dataset.s==="rec"){rec&&rec.state==="recording"&&rec.stop();return}
+    if(mic.dataset.s==="busy")return;
+    if(!navigator.mediaDevices||!window.MediaRecorder){toast("Spracheingabe geht hier nicht","Dieses Gerät oder dieser Browser unterstützt keine Aufnahme.",4000);return}
+    if(!ready())toast("Termin sprechen?","Beim ersten Mal lädt die App die Spracherkennung (ca. 80 MB, am besten im WLAN). Deine Stimme bleibt immer auf dem Gerät.",12000,{label:"Los",fn:begin});
+    else begin();
+  };
+}
 })();
+
 </script>
