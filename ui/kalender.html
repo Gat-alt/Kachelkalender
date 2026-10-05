@@ -672,6 +672,9 @@ body.tdragging,body.tdragging *{cursor:grabbing!important;user-select:none!impor
   #tfit svg{width:18px;height:18px}
   #tfit.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
 }
+
+/* Kacheln Stufe «Ganze Woche»: zwei Reihen pro Bildschirm, einmal scrollen */
+.tiles.tl.mid .evlist.tline{height:var(--tlh,180px)}
 </style>
 
 <div class="app" lang="de">
@@ -1061,10 +1064,10 @@ function dayHead(d){
   return `<div class="dh"><button class="open" data-open="${ymd(d)}" aria-label="${fmtDay(d)} öffnen"><span class="dnum num">${d.getDate()}</span><span class="dname">${WDS[i]}<em>${MON[d.getMonth()].slice(0,3)}.</em></span></button>${(()=>{const n=S.tasks.filter(t=>t.due===ymd(d)&&!t.done&&!(t.sDate&&t.sStart)).length;return n?`<button class="tpill" data-tpill="${ymd(d)}" aria-label="${n} ${n===1?"Aufgabe":"Aufgaben"} fällig – öffnen">✓ ${n}</button>`:""})()}<button class="add" data-new="${ymd(d)}" aria-label="Termin am ${fmtDay(d)}">+</button></div>`;
 }
 function renderTiles(){
-  const m=monday(cursor),td=ymd(new Date()),tz=S.set.tz||1,fit=!!S.set.tfit;
+  const m=monday(cursor),td=ymd(new Date()),tz=S.set.tz||1,tm=tfMode(),fit=tm===2;
   let r0=7*60,r1=21*60;
   for(let i=0;i<7;i++)dayEvents(ymd(addDays(m,i))).timed.forEach(e=>{r0=Math.min(r0,Math.floor(mins(e.start)/60)*60);r1=Math.max(r1,Math.ceil(mins(e.end)/60)*60)});
-  let html=fit?`<div class="tiles fit" data-r0="${r0}" data-r1="${r1}">`:`<div class="tiles tl" data-r0="${r0}" data-r1="${r1}" style="--tz:${tz};--hrs:${(r1-r0)/60};grid-template-columns:repeat(${tileCols(tz)},minmax(0,1fr))">`;
+  let html=fit?`<div class="tiles fit" data-r0="${r0}" data-r1="${r1}">`:`<div class="tiles tl${tm===1?" mid":""}" data-r0="${r0}" data-r1="${r1}" style="--tz:${tz};--hrs:${(r1-r0)/60};grid-template-columns:repeat(${tileCols(tz)},minmax(0,1fr))">`;
   for(let i=0;i<5;i++){const d=addDays(m,i);html+=`<section class="tile${ymd(d)===td?" today":""}" data-drop="${ymd(d)}">${dayHead(d)}${dayBlock(d,fit)}</section>`}
   const sa=addDays(m,5),so=addDays(m,6),we=[sa,so].some(d=>ymd(d)===td);
   html+=`<section class="tile tile-weekend${we?" today":""}">`+[sa,so].map(d=>`<div class="half${ymd(d)===td?" today":""}" data-drop="${ymd(d)}">${dayHead(d)}${dayBlock(d,fit)}</div>`).join("")+`</section>`;
@@ -1179,7 +1182,10 @@ function fitMonth(){
   w.scrollTop=0;
 }
 function clampTiles(){
-  const t=document.querySelector(".tiles");if(!t||!t.dataset.r0)return;const r0=+t.dataset.r0,r1=+t.dataset.r1,big=!t.classList.contains("fit"),MH=big?34:19;
+  const t=document.querySelector(".tiles");if(!t||!t.dataset.r0)return;
+  if(t.classList.contains("mid")){const v=$("view"),tile=t.querySelector(".tile"),tl=tile&&tile.querySelector(".evlist.tline");
+    if(tl){const gap=parseFloat(getComputedStyle(t).rowGap)||8,rowH=(v.clientHeight-(parseFloat(getComputedStyle(v).paddingBottom)||0)*0.4-gap*2)/2,other=tile.offsetHeight-tl.offsetHeight;
+      t.style.setProperty("--tlh",Math.max(90,Math.floor(rowH-other))+"px")}}const r0=+t.dataset.r0,r1=+t.dataset.r1,big=!t.classList.contains("fit"),MH=big?34:19;
   t.querySelectorAll(".evlist.tline").forEach(l=>{
     const H=l.clientHeight;if(H<20)return;const ppm=H/(r1-r0);
     const noon=l.querySelector(".noon");if(noon){noon.style.top=((12*60-r0)*ppm)+"px";noon.hidden=12*60<=r0||12*60>=r1}
@@ -1315,8 +1321,9 @@ function render(anim){document.documentElement.dataset.v=view;
     clearTimeout(render.t);render.t=setTimeout(()=>v.classList.remove("stagger"),700);
   }
   renderSide();
-  v.classList.toggle("fill",view==="grid"||view==="work"||view==="day"||view==="month"||(view==="tiles"&&!!S.set.tfit));
-  $("tfit").hidden=view!=="tiles";$("tfit").classList.toggle("on",!!S.set.tfit);$("tfit").setAttribute("aria-pressed",S.set.tfit?"true":"false");$("tfit").innerHTML=S.set.tfit?'<svg viewBox="0 0 24 24"><path d="M9 14l-4-4 4-4"/><path d="M5 10h9a5 5 0 0 1 0 10h-3"/></svg><span class="tfl">Grosse Kacheln</span>':'<svg viewBox="0 0 24 24"><rect x="4" y="3" width="7" height="5" rx="1.5"/><rect x="13" y="3" width="7" height="5" rx="1.5"/><rect x="4" y="10" width="7" height="5" rx="1.5"/><rect x="13" y="10" width="7" height="5" rx="1.5"/><rect x="4" y="17" width="7" height="4" rx="1.5"/><rect x="13" y="17" width="7" height="4" rx="1.5"/></svg><span class="tfl">Ganze Woche</span>';
+  v.classList.toggle("fill",view==="grid"||view==="work"||view==="day"||view==="month"||(view==="tiles"&&tfMode()===2));
+  $("tfit").hidden=view!=="tiles";{const tm=tfMode(),I={grid:'<svg viewBox="0 0 24 24"><rect x="4" y="3" width="7" height="5" rx="1.5"/><rect x="13" y="3" width="7" height="5" rx="1.5"/><rect x="4" y="10" width="7" height="5" rx="1.5"/><rect x="13" y="10" width="7" height="5" rx="1.5"/><rect x="4" y="17" width="7" height="4" rx="1.5"/><rect x="13" y="17" width="7" height="4" rx="1.5"/></svg>',all:'<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',back:'<svg viewBox="0 0 24 24"><path d="M9 14l-4-4 4-4"/><path d="M5 10h9a5 5 0 0 1 0 10h-3"/></svg>'};
+    $("tfit").classList.toggle("on",tm>0);$("tfit").dataset.m=tm;$("tfit").innerHTML=tm===0?I.grid+'<span class="tfl">Ganze Woche</span>':tm===1?I.all+'<span class="tfl">Alles auf einen Blick</span>':I.back+'<span class="tfl">Grosse Kacheln</span>'}
   if(view==="tiles")requestAnimationFrame(clampTiles);
   if(view==="grid"||view==="work"||view==="day")fitGrid(!!anim||!render.done);
   if(view==="month"){fitMonth();requestAnimationFrame(()=>view==="month"&&fitMonth())}
@@ -1904,7 +1911,7 @@ $("fs-btn").onclick=async()=>{
     try{await screen.orientation.lock("landscape")}catch(e){}
   }catch(e){toast("Vollbild geht in der Claude-App nicht","Öffne den Kalender-Link in Chrome, dort klappt es.",6000)}
 };
-$("tfit").onclick=()=>{S.set.tfit=!S.set.tfit;save();render("f")};
+$("tfit").onclick=()=>{S.set.tfit=(tfMode()+1)%3;save();render("f");$("view").scrollTop=0;const tb=document.querySelector(".topbar");if(tb)tb.style.marginTop="0px"};
 $("fab").onclick=()=>newAt(view==="day"?ymd(cursor):ymd(new Date()));
 $("menu").onclick=()=>$("side").classList.toggle("open");
 document.addEventListener("click",e=>{const s=$("side");if(s.classList.contains("open")&&!s.contains(e.target)&&!e.target.closest("#menu"))s.classList.remove("open")},true);
@@ -1921,7 +1928,8 @@ const ZR={mz:[1,2.6],gz:[1,3.2],tz:[0.8,1.7]};
 const zKey=()=>view==="month"?"mz":view==="tiles"?"tz":"gz";
 const scroller=()=>view==="grid"||view==="work"||view==="day"?document.querySelector(".gbody"):view==="month"?document.querySelector(".mwrap"):$("view");
 const mLvl=z=>z<1.3?0:z<1.8?1:z<2.3?2:3;
-function tileCols(z){return innerWidth<700?(z>=1.3?1:z<0.9?3:2):(z>=1.45?1:z>=1.15?2:3)}
+const tfMode=()=>S.set.tfit===true?2:(+S.set.tfit||0);
+function tileCols(z){return innerWidth<700?(z>=1.3?1:2):(z>=1.45?1:z>=1.15?2:3)}
 function zoomTo(z){
   const k=zKey();z=Math.min(ZR[k][1],Math.max(ZR[k][0],z));S.set[k]=z;
   if(k==="mz"){const m=document.querySelector(".month");if(!m)return;
@@ -1955,7 +1963,7 @@ $("view").addEventListener("wheel",e=>{if(!e.ctrlKey)return;e.preventDefault();
 $("view").addEventListener("touchend",e=>{if(sx===null)return;const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
   if(!pinched&&!justDragged&&!document.body.classList.contains("is-dragging")&&Math.abs(dx)>70&&Math.abs(dy)<45)step(dx<0?1:-1);sx=null},{passive:true});
 
-if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(view==="month")fitMonth();if(view==="tiles"&&S.set.tfit)clampTiles()});
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(view==="month")fitMonth();if(view==="tiles"&&tfMode())clampTiles()});
 /* ---------- Handy drehen: Ansicht automatisch wechseln ---------- */
 let portraitView=null;
 const isPhone=()=>window.matchMedia&&matchMedia("(pointer: coarse)").matches;
