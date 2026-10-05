@@ -88,6 +88,9 @@ jobs:
       - run: npx tauri android init --ci
       - name: App-Symbol fürs Handy
         run: npx tauri icon scripts/icon.png
+      - name: Handy-Symbol mit dunklem Hintergrund (wie das Logo in der App)
+        run: |
+          find src-tauri -name ic_launcher_background.xml -print -exec sed -i 's/#[0-9A-Fa-f]\{6\}/#2E3035/' {} \;
       - name: Signatur-Passwort vorhanden?
         id: key
         env:
