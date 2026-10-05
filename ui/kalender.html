@@ -82,7 +82,7 @@ button{cursor:pointer}
 .dot{width:8px;height:8px;border-radius:50%;background:#16a34a;flex:none}
 .dot.off{background:#d97706}
 
-.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:14px 16px 10px}
+.topbar{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:14px 16px 10px}
 .title{display:flex;align-items:baseline;gap:10px;min-width:0;flex:1}
 .title h1{font-family:var(--font-display);font-weight:700;font-size:1.6em;letter-spacing:-.02em;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kw{font-weight:600;font-size:.78em;color:var(--muted);border:1px solid var(--line);padding:1px 7px;border-radius:999px;white-space:nowrap;letter-spacing:.02em}
@@ -660,8 +660,8 @@ body.tdragging,body.tdragging *{cursor:grabbing!important;user-select:none!impor
 .linkbtn{border:0;background:none;color:var(--accent);font-weight:700;padding:0}
 .pl-left{margin-top:6px;font-size:.85em;color:var(--muted)}
 
-/* Statusleiste oben abdecken: nichts scheint mehr über der oberen Leiste durch */
-.topbar::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:calc(env(safe-area-inset-top,0px) + 4px);background:var(--bg);pointer-events:none}
+/* Platz für die Statusleiste oben: alles beginnt darunter, die Kalenderliste bleibt sichtbar */
+.main{padding-top:env(safe-area-inset-top,0px);background:var(--bg)}
 /* «Ganze Woche» auf dem Handy: gut sichtbarer Knopf unten links, ein Tipp hin und zurück */
 @media (max-width:860px) and (orientation:portrait){
   #tfit{position:fixed;left:12px;bottom:calc(66px + env(safe-area-inset-bottom,0px));z-index:14;height:44px;padding:0 14px;border-radius:14px;gap:7px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);font-weight:600;font-size:.88em;color:var(--fg);animation:pop .2s ease both}
@@ -676,6 +676,15 @@ body.tdragging,body.tdragging *{cursor:grabbing!important;user-select:none!impor
 /* Kacheln: Datum bleibt beim Scrollen oben in der Kachel stehen */
 .tiles.tl .dh{position:sticky;top:0;z-index:3;background:var(--surface);margin-top:-8px;padding-top:8px}
 .tiles.tl .tile-weekend .half .dh{top:0}
+
+/* Querformat Kacheln */
+.tiles.tl.lbig .evlist.tline{height:var(--tlh,180px)}
+@media (orientation:landscape){
+  html.land .tiles.fit{grid-template-columns:repeat(5,minmax(0,1fr)) minmax(0,1.7fr);grid-template-rows:minmax(0,1fr);gap:6px}
+  html.land .tiles.fit .tile-weekend{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1fr);gap:6px}
+  html.land .tiles.fit .tile-weekend .half + .half{border-top:0;padding-top:0;border-left:1px dashed var(--line);padding-left:6px}
+  html.land .tiles .dh .dnum{font-size:1.15em}
+}
 </style>
 
 <div class="app" lang="de">
@@ -1184,8 +1193,10 @@ function fitMonth(){
 }
 function clampTiles(){
   const t=document.querySelector(".tiles");if(!t||!t.dataset.r0)return;
-  if(t.classList.contains("mid")){const v=$("view"),tile=t.querySelector(".tile"),tl=tile&&tile.querySelector(".evlist.tline");
-    if(tl){const gap=parseFloat(getComputedStyle(t).rowGap)||8,rowH=(v.clientHeight-(parseFloat(getComputedStyle(v).paddingBottom)||0)*0.4-gap*2)/2,other=tile.offsetHeight-tl.offsetHeight;
+  const land=isLand();t.classList.toggle("lbig",land&&!t.classList.contains("mid")&&!t.classList.contains("fit"));
+  if(t.classList.contains("mid")||t.classList.contains("lbig")){const v=$("view"),tile=t.querySelector(".tile"),tl=tile&&tile.querySelector(".evlist.tline");
+    /* Hochformat «Ganze Woche»: 2 Reihen pro Bildschirm. Querformat: «Grosse Kacheln» 1 Reihe, «Ganze Woche» 2 Reihen = ganze Woche */
+    if(tl){const rows=t.classList.contains("mid")?2:1,gap=parseFloat(getComputedStyle(t).rowGap)||8,pb=land?(parseFloat(getComputedStyle(v).paddingBottom)||0):(parseFloat(getComputedStyle(v).paddingBottom)||0)*0.4,rowH=(v.clientHeight-pb-gap*rows)/rows,other=tile.offsetHeight-tl.offsetHeight;
       t.style.setProperty("--tlh",Math.max(90,Math.floor(rowH-other))+"px")}}const r0=+t.dataset.r0,r1=+t.dataset.r1,big=!t.classList.contains("fit"),MH=big?34:19;
   t.querySelectorAll(".evlist.tline").forEach(l=>{
     const H=l.clientHeight;if(H<20)return;const ppm=H/(r1-r0);
