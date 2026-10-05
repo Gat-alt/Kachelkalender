@@ -11,6 +11,11 @@ on:
 permissions:
   contents: write
 
+# Kommt eine neuere Version, wird ein noch laufender älterer Bau abgebrochen
+concurrency:
+  group: app-bauen
+  cancel-in-progress: true
+
 jobs:
   desktop:
     strategy:
@@ -53,8 +58,8 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+  # Handy-Version läuft gleichzeitig mit den Computer-Versionen, damit die APK schnell da ist
   android:
-    needs: desktop
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
