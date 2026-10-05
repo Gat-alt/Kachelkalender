@@ -675,6 +675,10 @@ body.tdragging,body.tdragging *{cursor:grabbing!important;user-select:none!impor
 
 /* Kacheln Stufe «Ganze Woche»: zwei Reihen pro Bildschirm, einmal scrollen */
 .tiles.tl.mid .evlist.tline{height:var(--tlh,180px)}
+
+/* Kacheln: Datum bleibt beim Scrollen oben in der Kachel stehen */
+.tiles.tl .dh{position:sticky;top:0;z-index:3;background:var(--surface);margin-top:-8px;padding-top:8px}
+.tiles.tl .tile-weekend .half .dh{top:0}
 </style>
 
 <div class="app" lang="de">
@@ -1891,7 +1895,7 @@ $("side-set").onclick=()=>{$("side").classList.remove("open");renderSettings();$
 let lastY=0;
 $("view").addEventListener("scroll",()=>{const v=$("view"),y=v.scrollTop,tb=document.querySelector(".topbar");
   if(drag&&drag.active)return;
-  if(y>lastY+8&&y>50){tb.style.marginTop=(-tb.offsetHeight)+"px";lastY=y}
+  /* Obere Leiste bleibt immer sichtbar (Wunsch: nichts verschwindet beim Scrollen) */
   else if(y<lastY-8||y<20){tb.style.marginTop="0px";lastY=y}},{passive:true});
 
 function setView(v){view=v;try{localStorage.setItem(KEY+"-view",v)}catch(e){}render("f")}
