@@ -429,9 +429,17 @@ function showMsCode(code, uri, email) {
 const MS_SCOPE_RO = "offline_access User.Read Calendars.Read";
 async function connectMs({ name, color, f, ro }) {
   const scope = ro ? MS_SCOPE_RO : MS_SCOPE;
-  const email = (f.user || "").trim(), client = (f.client || "").trim();
+  const email = (f.user || "").trim(), client = (f.client || "").replace(/[\s\u200b-\u200d\ufeff{}]/g, "").replace(/[‐-―−]/g, "-");
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Bitte deine E-Mail-Adresse eingeben.");
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(client)) throw new Error("Bitte die Client-ID von der IT eingeben. Sie sieht so aus: 1a2b3c4d-1234-5678-9abc-1234567890ab");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(client)) {
+    const parts = client.split("-"), want = [8, 4, 4, 4, 12], names = ["erste", "zweite", "dritte", "vierte", "fünfte"];
+    let why = "";
+    if (!client) why = "Das Feld ist leer.";
+    else if (/[^0-9a-f-]/i.test(client)) why = "Sie enthält Zeichen, die nicht passen (nur 0–9 und a–f sind erlaubt): «" + client.replace(/[0-9a-f-]/gi, "") + "».";
+    else if (parts.length !== 5) why = "Sie hat " + parts.length + " statt 5 Teile.";
+    else { const i = parts.findIndex((x, k) => x.length !== want[k]); if (i >= 0) why = "Der " + names[i] + " Teil «" + parts[i] + "» hat " + parts[i].length + " statt " + want[i] + " Zeichen."; }
+    throw new Error("Die Client-ID stimmt nicht. " + why + " Richtig ist 8-4-4-4-12 Zeichen, z. B. 1a2b3c4d-1234-5678-9abc-1234567890ab. Am besten aus der E-Mail der IT kopieren und einfügen.");
+  }
   const tenant = /@(outlook|hotmail|live|msn)\./i.test(email) ? "consumers" : email.split("@")[1].toLowerCase();
   const dc = await msPost(msAuth(tenant) + "devicecode", { client_id: client, scope });
   if (!dc.ok) throw new Error(msErr(dc.j));
