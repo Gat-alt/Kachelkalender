@@ -908,14 +908,20 @@ body.placing .mic{opacity:0;pointer-events:none}
 <div class="toast" id="toast" hidden></div>
 
 <script>
-/* Sicherheitsnetz: Blockiert die App-Hülle style="…"-Attribute (CSP), werden sie hier per JS nachgetragen.
-   Ohne das stehen auf dem Handy z. B. die Wochentage untereinander statt nebeneinander. */
+/* Sicherheitsnetz: Blockiert die App-Hülle style="…"-Attribute (CSP mit Nonce), werden sie sofort per JavaScript
+   (CSSOM, erlaubt) gesetzt. Ohne das fehlen auf dem Handy Spaltenbreiten und die Termine im Zeitraster. */
 (function(){
-  const one=e=>{const a=e.getAttribute("style");if(a&&!e.style.cssText)e.style.cssText=a};
-  const all=n=>{if(n.nodeType!==1)return;if(n.hasAttribute("style"))one(n);n.querySelectorAll("[style]").forEach(one)};
-  new MutationObserver(ms=>ms.forEach(m=>{if(m.type==="attributes")one(m.target);else m.addedNodes.forEach(all)}))
-    .observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["style"]});
-  if(document.body)all(document.body);
+  const t=document.createElement("i");t.setAttribute("style","width:7px");
+  const blocked=t.style.width!=="7px";if(!blocked)return;
+  const one=e=>{const a=e.getAttribute("style");if(a&&e.style.cssText.replace(/\s/g,"")!==a.replace(/\s/g,""))e.style.cssText=a};
+  const all=n=>{if(!n||n.nodeType!==1)return;if(n.hasAttribute("style"))one(n);n.querySelectorAll("[style]").forEach(one)};
+  const wrap=(proto,prop)=>{const d=Object.getOwnPropertyDescriptor(proto,prop);if(!d||!d.set)return;
+    Object.defineProperty(proto,prop,{configurable:true,enumerable:d.enumerable,get:d.get,set(v){const par=this.parentElement;d.set.call(this,v);all(prop==="outerHTML"?par:this)}})};
+  wrap(Element.prototype,"innerHTML");wrap(Element.prototype,"outerHTML");
+  const iah=Element.prototype.insertAdjacentHTML;Element.prototype.insertAdjacentHTML=function(w,h){iah.call(this,w,h);all(w==="beforebegin"||w==="afterend"?this.parentElement:this)};
+  const sa=Element.prototype.setAttribute;Element.prototype.setAttribute=function(n,v){if(String(n).toLowerCase()==="style"){sa.call(this,n,v);this.style.cssText=v;return}return sa.call(this,n,v)};
+  new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(all))).observe(document.documentElement,{childList:true,subtree:true});
+  all(document.body);document.addEventListener("DOMContentLoaded",()=>all(document.body));
 })();
 
 (function(){
