@@ -731,6 +731,11 @@ body.placing .mic{opacity:0;pointer-events:none}
 /* Neuer Termin: kurz aufleuchten, damit man sieht, wo er ist */
 @keyframes evFlash{0%,100%{box-shadow:0 0 0 0 transparent}30%{box-shadow:0 0 0 4px var(--accent)}}
 .flash{animation:evFlash 1s ease 2;z-index:6!important}
+
+/* Microsoft-Anmeldung: Code anzeigen */
+.mscode{display:grid;gap:8px;line-height:1.4}
+.mscode b.num{font-size:1.9em;letter-spacing:.12em;font-family:var(--font-display);color:var(--fg);background:var(--surface);border:1px dashed var(--accent);border-radius:12px;padding:8px 12px;text-align:center;user-select:all}
+.mscode .btn{justify-self:start}
 </style>
 
 <div class="app" lang="de">
@@ -1316,13 +1321,14 @@ $("task-pop").addEventListener("submit",e=>{const f=e.target.closest("[data-plan
 
 /* ---------- Kalender hinzufügen / bearbeiten ---------- */
 const CTYPES=[
-  {k:"ms",n:"Microsoft / Outlook",d:"Outlook.com, Microsoft 365, Arbeit oder Schule",ic:"M",f:[["user","E-Mail-Adresse","name@beispiel.ch"]],note:"Anmeldung im Browserfenster von Microsoft. Bei Schul- oder Firmenkonten (z. B. ZHAW) muss die Organisation die App freigeben."},
+  {k:"ms",n:"Microsoft / Outlook",d:"Outlook.com, Microsoft 365, Arbeit oder Schule",ic:"M",f:[["user","E-Mail-Adresse","name@beispiel.ch"],["client","Client-ID (von der IT)","1a2b3c4d-1234-5678-9abc-…"]],note:"Anmeldung im Browserfenster von Microsoft. Bei Schul- oder Firmenkonten (z. B. ZHAW) muss die Organisation die App freigeben."},
+  {k:"msr",n:"Microsoft / Outlook · nur lesen",d:"Wenn die IT nur das Lesen freigibt",ic:"M",f:[["user","E-Mail-Adresse","name@beispiel.ch"],["client","Client-ID (von der IT)","1a2b3c4d-1234-5678-9abc-…"]],note:"Anmeldung im Browserfenster von Microsoft. Bei Schul- oder Firmenkonten (z. B. ZHAW) muss die Organisation die App freigeben."},
   {k:"infomaniak",n:"Infomaniak",d:"kSuite / Mail-Konto, Schweiz",ic:"i",f:[["user","Benutzername (z. B. AB12345)","AB12345"],["server","Server","https://sync.infomaniak.com"]],note:"Benutzername und App-Passwort findest du auf config.infomaniak.com → anderes Gerät → Linux → Kalender → manuelle Synchronisation. Das Passwort wird nur auf deinem Gerät gespeichert."},
   {k:"icloud",n:"Apple iCloud",d:"Kalender vom iPhone oder Mac",ic:"",f:[["user","Apple-ID","name@icloud.com"]],note:"Passwort: ein app-spezifisches Passwort von appleid.apple.com."},
   {k:"caldav",n:"CalDAV",d:"Nextcloud, mailbox.org, Posteo, eigener Server …",ic:"☁",f:[["server","Server-Adresse","https://cloud.beispiel.ch/remote.php/dav"],["user","Benutzername",""]],note:"Funktioniert mit jedem Dienst, der CalDAV anbietet."},
   {k:"ics",n:"Abo-Link (.ics)",d:"Stundenplan, Feiertage, Verein, Schulferien",ic:"⇣",f:[["url","Link zum Kalender","https://… .ics"]],note:"Nur lesen. Der Kalender wird regelmässig automatisch aktualisiert."},
   {k:"local",n:"Nur auf diesem Gerät",d:"Ohne Konto, ohne Synchronisation",ic:"▣",f:[],note:"Termine bleiben nur auf diesem Gerät."}];
-const SRC={ms:"Microsoft / Outlook",infomaniak:"Infomaniak · Schweiz",icloud:"Apple iCloud",caldav:"CalDAV",ics:"Abo-Link (.ics) · nur lesen",local:"Nur auf diesem Gerät"};
+const SRC={ms:"Microsoft / Outlook",msr:"Microsoft / Outlook · nur lesen",infomaniak:"Infomaniak · Schweiz",icloud:"Apple iCloud",caldav:"CalDAV",ics:"Abo-Link (.ics) · nur lesen",local:"Nur auf diesem Gerät"};
 let calEdit=null,calType=null,calColor=null;
 function openCalSheet(id){
   calEdit=id?calOf(id):null;$("cal-scrim").hidden=false;

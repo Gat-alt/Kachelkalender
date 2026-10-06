@@ -26,7 +26,8 @@ window.KK_EMPTY = () => ({
 });
 
 window.KK_note = (k, t) => ({
-  ms: "Die Microsoft-Anmeldung kommt mit einem der nächsten Updates. Bis dahin geht es so: In Outlook im Web unter Einstellungen → Kalender → Freigegebene Kalender → «Kalender veröffentlichen» einen ICS-Link erstellen und ihn hier als «Abo-Link (.ics)» hinzufügen (nur lesen). Für das ZHAW-Konto braucht es die Freigabe der ZHAW.",
+  ms: "Liest und schreibt deinen Outlook-Kalender in beide Richtungen. Die Client-ID bekommst du von deiner IT (siehe E-Mail-Vorlage). Nach «Hinzufügen» zeigt die App einen Code: im Browser auf microsoft.com/devicelogin einfügen und mit deinem Konto anmelden. Zugangsdaten bleiben nur auf diesem Gerät.",
+  msr: "Zeigt deinen Outlook-Kalender an (nur lesen). Die Client-ID bekommst du von deiner IT. Nach «Hinzufügen» zeigt die App einen Code: im Browser auf microsoft.com/devicelogin einfügen und anmelden. Wenn die IT später auch das Schreiben freigibt, den Kalender entfernen und als «Microsoft / Outlook» neu hinzufügen.",
   ics: "Nur lesen. Wird beim Öffnen und alle 15 Minuten aktualisiert.",
   local: "Termine bleiben nur auf diesem Gerät."
 }[k] || (t.note + " Zugangsdaten bleiben nur auf diesem Gerät."));
@@ -274,7 +275,7 @@ const sig = e => JSON.stringify([e.title, e.date, e.edate || "", !!e.allDay, e.s
 
 /* ---------- Kalender hinzufügen ---------- */
 window.KK_connect = async ({ type, name, color, f }) => {
-  if (type === "ms") throw new Error(window.KK_note(type, {}));
+  if (type === "ms" || type === "msr") return connectMs({ name, color, f, ro: type === "msr" });
   const S = K.S;
   if (type === "ics") {
     let url = (f.url || "").trim().replace(/^webcal:\/\//i, "https://");
@@ -342,7 +343,7 @@ async function pullDav(cal) {
 }
 async function pushDav() {
   const S = K.S;
-  for (const cal of S.cals.filter(c => c.acct && !c.ro)) {
+  for (const cal of S.cals.filter(c => c.acct && !c.ro && c.type !== "ms")) {
     const known = new Set(cal.known || []), alive = new Set();
     for (const e of S.ev.filter(x => x.cal === cal.id && !x.lock)) {
       if (e.rh && e.rcal === cal.id && e.rsig === sig(e)) { alive.add(e.rh); continue; }
@@ -368,6 +369,182 @@ async function pushDav() {
     cal.known = [...new Set([...alive, ...[...known].filter(h => still.has(h))])];
   }
 }
+/* ---------- Microsoft 365 / Outlook (Microsoft Graph) ----------
+   Anmeldung mit Code (Device Code Flow): Die App zeigt einen Code, du meldest dich im Browser bei Microsoft an.
+   Danach spricht die App direkt mit Microsoft (graph.microsoft.com). Kein eigener Server dazwischen.
+   Berechtigungen: nur der eigene Kalender (Calendars.ReadWrite), Anmeldung (User.Read), angemeldet bleiben (offline_access). */
+const MS_SCOPE = "offline_access User.Read Calendars.ReadWrite";
+const msAuth = t => `https://login.microsoftonline.com/${encodeURIComponent(t)}/oauth2/v2.0/`;
+const form = o => Object.entries(o).map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v)).join("&");
+function msErr(j) {
+  const d = (j && (j.error_description || j.error)) || "";
+  if (/AADSTS700016/.test(d)) return "Diese Client-ID kennt die Organisation nicht. Bitte bei der IT nachfragen.";
+  if (/AADSTS7000218|AADSTS70002\b/.test(d)) return "Die IT muss in der App-Registrierung «Öffentliche Clientflows zulassen» einschalten.";
+  if (/AADSTS65001|AADSTS90094|AADSTS90008|AADSTS50105|consent/i.test(d)) return "Die IT muss die App noch freigeben (Administratorzustimmung).";
+  if (/AADSTS50059|AADSTS90002|AADSTS900023/.test(d)) return "Die Organisation wurde nicht gefunden. Stimmt die E-Mail-Adresse?";
+  if (/AADSTS53003|AADSTS53000/.test(d)) return "Die Organisation erlaubt die Anmeldung von diesem Gerät nicht (Richtlinie der IT).";
+  if (j && j.error === "expired_token") return "Der Code ist abgelaufen. Bitte nochmals «Hinzufügen» tippen.";
+  if (j && j.error === "authorization_declined") return "Die Anmeldung wurde abgebrochen.";
+  return "Microsoft meldet: " + (d.split(/\r?\n/)[0] || "unbekannter Fehler");
+}
+async function msPost(url, body) {
+  let r;
+  try { r = await hfetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form(body) }); }
+  catch (e) { throw new Error("Keine Verbindung zu Microsoft."); }
+  let j = {}; try { j = await r.json(); } catch (e) {}
+  return { ok: r.status < 400, j };
+}
+async function msToken(acct) {
+  const a = sec()[acct]; if (!a || !a.rt) throw new Error("Bitte das Microsoft-Konto neu verbinden.");
+  if (a.at && a.exp > Date.now() + 60e3) return a.at;
+  const { ok, j } = await msPost(msAuth(a.tenant) + "token", { client_id: a.client, grant_type: "refresh_token", refresh_token: a.rt, scope: a.scope || MS_SCOPE });
+  if (!ok) throw new Error(j.error === "invalid_grant" && !/AADSTS65001/.test(j.error_description || "") ? "Microsoft-Anmeldung abgelaufen. Bitte den Kalender entfernen und neu verbinden." : msErr(j));
+  const all = sec(); Object.assign(all[acct], { at: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1e3, rt: j.refresh_token || a.rt }); setSec(all);
+  return j.access_token;
+}
+async function graph(acct, method, path, body) {
+  const url = /^https:/.test(path) ? path : "https://graph.microsoft.com/v1.0" + path;
+  const go = async tok => {
+    try { return await hfetch(url, { method, headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json", Prefer: 'outlook.timezone="UTC"' }, body: body ? JSON.stringify(body) : undefined }); }
+    catch (e) { throw new Error("Keine Verbindung zu Microsoft."); }
+  };
+  let r = await go(await msToken(acct));
+  if (r.status === 401) { const all = sec(); if (all[acct]) { all[acct].exp = 0; setSec(all); } r = await go(await msToken(acct)); }
+  if (method === "DELETE" && (r.status === 404 || r.status === 410)) return null;
+  if (r.status === 403) throw new Error("Kein Zugriff auf den Outlook-Kalender. Die IT muss die App freigeben.");
+  if (r.status >= 400) { let j = {}; try { j = await r.json(); } catch (e) {} throw new Error("Microsoft meldet Fehler " + r.status + (j.error && j.error.message ? ": " + j.error.message : "") + "."); }
+  if (r.status === 204 || r.status === 202) return null;
+  try { return await r.json(); } catch (e) { return null; }
+}
+function showMsCode(code, uri, email) {
+  const n = document.getElementById("cal-note"); if (!n) return;
+  const host = String(uri || "https://microsoft.com/devicelogin").replace(/^https?:\/\//, "");
+  n.innerHTML = `<div class="mscode"><span>1. Dieser Code ist schon kopiert:</span><b class="num">${code}</b>
+    <span>2. Im Browser öffnen: <b>${host}</b></span><span>3. Code einfügen und mit <b>${String(email).replace(/[<>&"]/g, "")}</b> anmelden. Danach hierher zurückkommen, der Rest geht automatisch.</span>
+    <button type="button" class="btn" id="ms-copy">Code nochmals kopieren</button></div>`;
+  const b = document.getElementById("ms-copy");
+  if (b) b.onclick = async () => { try { await navigator.clipboard.writeText(code); b.textContent = "Kopiert ✓"; } catch (e) { b.textContent = "Code: " + code; } };
+  const s = document.getElementById("cal-save"); if (s) s.textContent = "Warte auf Anmeldung …";
+}
+const MS_SCOPE_RO = "offline_access User.Read Calendars.Read";
+async function connectMs({ name, color, f, ro }) {
+  const scope = ro ? MS_SCOPE_RO : MS_SCOPE;
+  const email = (f.user || "").trim(), client = (f.client || "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Bitte deine E-Mail-Adresse eingeben.");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(client)) throw new Error("Bitte die Client-ID von der IT eingeben. Sie sieht so aus: 1a2b3c4d-1234-5678-9abc-1234567890ab");
+  const tenant = /@(outlook|hotmail|live|msn)\./i.test(email) ? "consumers" : email.split("@")[1].toLowerCase();
+  const dc = await msPost(msAuth(tenant) + "devicecode", { client_id: client, scope });
+  if (!dc.ok) throw new Error(msErr(dc.j));
+  const { device_code, user_code, verification_uri, interval = 5, expires_in = 900 } = dc.j;
+  try { await navigator.clipboard.writeText(user_code); } catch (e) {}
+  showMsCode(user_code, verification_uri, email);
+  const until = Date.now() + expires_in * 1e3, scrim = document.getElementById("cal-scrim");
+  let wait = interval, tok = null;
+  while (Date.now() < until) {
+    await new Promise(r => setTimeout(r, wait * 1e3));
+    if (scrim && scrim.hidden) throw new Error("Abgebrochen.");
+    const t = await msPost(msAuth(tenant) + "token", { grant_type: "urn:ietf:params:oauth:grant-type:device_code", client_id: client, device_code });
+    if (t.ok) { tok = t.j; break; }
+    if (t.j.error === "authorization_pending") continue;
+    if (t.j.error === "slow_down") { wait += 5; continue; }
+    throw new Error(msErr(t.j));
+  }
+  if (!tok) throw new Error("Der Code ist abgelaufen. Bitte nochmals «Hinzufügen» tippen.");
+  const acct = "a" + K.uid(), all = sec();
+  all[acct] = { type: "ms", user: email, client, tenant, scope, rt: tok.refresh_token, at: tok.access_token, exp: Date.now() + (tok.expires_in || 3600) * 1e3 }; setSec(all);
+  const s = document.getElementById("cal-save"); if (s) s.textContent = "Lade Kalender …";
+  let list;
+  try { list = ((await graph(acct, "GET", "/me/calendars?$top=50&$select=id,name,canEdit,isDefaultCalendar")) || {}).value || []; }
+  catch (e) { const a = sec(); delete a[acct]; setSec(a); throw e; }
+  if (!list.length) { const a = sec(); delete a[acct]; setSec(a); throw new Error("Keine Kalender in diesem Konto gefunden."); }
+  list.sort((a, b) => (b.isDefaultCalendar ? 1 : 0) - (a.isDefaultCalendar ? 1 : 0));
+  const S = K.S, used = S.cals.map(c => c.color);
+  const added = list.map((c, i) => {
+    const col = i === 0 ? color : (K.PALETTE.find(p => !used.includes(p) && p !== color) || color); used.push(col);
+    return { id: "c" + K.uid(), name: i === 0 ? name : name + " · " + c.name, src: K.SRC.ms + (c.canEdit && !ro ? "" : " · nur lesen"), type: "ms", acct, gcal: c.id, color: col, on: i === 0, ro: ro || !c.canEdit };
+  });
+  S.cals.push(...added); K.save();
+  try { await pullMs(added[0]); lastErr = null; } catch (e) { lastErr = added[0].name + ": " + e.message; }
+  K.save(); K.render(); status();
+  return added.length === 1 ? `${name} ist verbunden` : `${name} ist verbunden. ${added.length - 1} weitere Kalender sind ausgeblendet und lassen sich in der Leiste einschalten.`;
+}
+function msToEv(g, cal) {
+  const ev = { id: "m" + hash(cal.id + "|" + g.id), gid: g.id, cal: cal.id, rcal: cal.id, title: g.subject || "(ohne Titel)",
+    loc: (g.location && g.location.displayName) || "", notes: (g.bodyPreview || "").trim() };
+  if (g.isAllDay) {
+    ev.allDay = true; ev.start = ""; ev.end = ""; ev.date = g.start.dateTime.slice(0, 10);
+    const ed = K.ymd(K.addDays(K.parse(g.end.dateTime.slice(0, 10)), -1)); if (ed > ev.date) ev.edate = ed;
+  } else {
+    const s = new Date(g.start.dateTime.slice(0, 19) + "Z"), e = new Date(g.end.dateTime.slice(0, 19) + "Z");
+    ev.date = K.ymd(s); ev.start = K.toMin(s.getHours() * 60 + s.getMinutes());
+    if (K.ymd(e) > ev.date) { ev.end = "23:59"; ev.lock = true; } // mehrtägig mit Uhrzeit: in Outlook bearbeiten
+    else ev.end = K.toMin(e.getHours() * 60 + e.getMinutes());
+    if (K.mins(ev.end) <= K.mins(ev.start)) ev.end = K.toMin(Math.min(24 * 60 - 1, K.mins(ev.start) + 15));
+  }
+  ev.remind = g.isReminderOn ? (g.reminderMinutesBeforeStart || 0) : -1;
+  if (g.showAs === "free") ev.free = true;
+  if (cal.ro) ev.lock = true;
+  ev.rnotes = ev.notes; ev.rsig = sig(ev);
+  return ev;
+}
+async function pullMs(cal) {
+  const w = win(), S = K.S, fresh = [], seen = new Set();
+  let url = `/me/calendars/${encodeURIComponent(cal.gcal)}/calendarView?startDateTime=${w.a.toISOString()}&endDateTime=${w.b.toISOString()}&$top=500&$select=id,subject,start,end,isAllDay,location,bodyPreview,isReminderOn,reminderMinutesBeforeStart,showAs,isCancelled`;
+  while (url) {
+    const j = (await graph(cal.acct, "GET", url)) || {};
+    (j.value || []).forEach(g => { if (g.isCancelled) return; seen.add(g.id); fresh.push(msToEv(g, cal)); });
+    url = j["@odata.nextLink"] || null;
+  }
+  const mine = S.ev.filter(e => e.cal === cal.id || e.rcal === cal.id);
+  const dirty = mine.filter(e => e.cal === cal.id ? (!e.gid || e.rcal !== cal.id || e.rsig !== sig(e)) : true); // lokale Änderungen und weggezogene Termine behalten
+  const dg = new Set(dirty.map(e => e.gid).filter(Boolean));
+  const keep = fresh.filter(e => !dg.has(e.gid));
+  keepLocal(mine, keep);
+  S.ev = S.ev.filter(e => !(e.cal === cal.id || e.rcal === cal.id)).concat(keep, dirty);
+  cal.known = [...seen];
+}
+const MSREP = { d: { type: "daily", interval: 1 }, wd: { type: "weekly", interval: 1, daysOfWeek: ["monday", "tuesday", "wednesday", "thursday", "friday"] },
+  w: { type: "weekly", interval: 1 }, w2: { type: "weekly", interval: 2 }, m: { type: "absoluteMonthly", interval: 1 }, y: { type: "absoluteYearly", interval: 1 } };
+const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+function msBody(e, full) {
+  const b = { subject: e.title, isAllDay: !!e.allDay, location: { displayName: e.loc || "" }, showAs: e.free ? "free" : "busy" };
+  const iso = (ds, t) => { const [h, m] = t.split(":").map(Number), d = K.parse(ds); d.setHours(h, m, 0, 0); return d.toISOString().slice(0, 19); };
+  if (e.allDay) { b.start = { dateTime: e.date + "T00:00:00", timeZone: "UTC" }; b.end = { dateTime: K.ymd(K.addDays(K.parse(e.edate || e.date), 1)) + "T00:00:00", timeZone: "UTC" }; }
+  else { b.start = { dateTime: iso(e.date, e.start), timeZone: "UTC" }; b.end = { dateTime: iso(e.date, e.end), timeZone: "UTC" }; }
+  const r = e.remind == null ? K.S.set.remind : e.remind; b.isReminderOn = r >= 0; if (r >= 0) b.reminderMinutesBeforeStart = r;
+  if (full || (e.notes || "") !== (e.rnotes || "")) b.body = { contentType: "text", content: e.notes || "" };
+  if (e.rep && MSREP[e.rep.f]) {
+    const d = K.parse(e.date), p = Object.assign({}, MSREP[e.rep.f]);
+    if (p.type === "weekly" && !p.daysOfWeek) p.daysOfWeek = [DAYS[d.getDay()]];
+    if (p.type === "absoluteMonthly") p.dayOfMonth = d.getDate();
+    if (p.type === "absoluteYearly") { p.dayOfMonth = d.getDate(); p.month = d.getMonth() + 1; }
+    b.recurrence = { pattern: p, range: e.rep.until ? { type: "endDate", startDate: e.date, endDate: e.rep.until } : { type: "noEnd", startDate: e.date } };
+  }
+  return b;
+}
+async function pushMs() {
+  const S = K.S, again = [];
+  for (const cal of S.cals.filter(c => c.type === "ms" && c.acct && !c.ro)) {
+    const known = new Set(cal.known || []), alive = new Set();
+    for (const e of S.ev.filter(x => x.cal === cal.id && !x.lock)) {
+      if (e.gid && e.rcal === cal.id && e.rsig === sig(e)) { alive.add(e.gid); continue; }
+      if (e.rh && e.rcal && e.rcal !== cal.id) { // aus einem CalDAV-Kalender hierher verschoben: dort löschen
+        const old = S.cals.find(c => c.id === e.rcal); if (old && old.acct && old.type !== "ms") { try { await dav("DELETE", e.rh, old.acct, null, null, {}); } catch (x) {} }
+        delete e.rh; delete e.et;
+      }
+      if (e.gid && e.rcal === cal.id) await graph(cal.acct, "PATCH", "/me/events/" + encodeURIComponent(e.gid), msBody(e, false));
+      else { const j = await graph(cal.acct, "POST", `/me/calendars/${encodeURIComponent(cal.gcal)}/events`, msBody(e, true)); e.gid = j.id; }
+      if (e.rep) again.push(cal);
+      e.rcal = cal.id; e.rnotes = e.notes; e.rsig = sig(e); alive.add(e.gid);
+    }
+    // lokal gelöschte oder weggezogene Termine auch in Outlook löschen
+    const still = new Set(S.ev.filter(x => x.cal === cal.id && x.gid).map(x => x.gid));
+    for (const g of known) if (!still.has(g)) await graph(cal.acct, "DELETE", "/me/events/" + encodeURIComponent(g));
+    cal.known = [...new Set([...alive, ...[...known].filter(g => still.has(g))])];
+  }
+  for (const cal of new Set(again)) await pullMs(cal); // Serien: einzelne Termine von Outlook holen
+}
+
 function forget() { // Zugangsdaten entfernter Kalender löschen
   const S = K.S, used = new Set(S.cals.map(c => c.acct).filter(Boolean)), a = sec();
   let ch = false; Object.keys(a).forEach(k => { if (!used.has(k)) { delete a[k]; ch = true; } }); if (ch) setSec(a);
@@ -380,7 +557,7 @@ window.KK_onSave = () => {
   pushT = setTimeout(() => queue(async () => {
     forget();
     if (!K.S.cals.some(c => c.acct && !c.ro)) { scheduleReminders(); return; }
-    try { await pushDav(); lastErr = null; lastSync = new Date(); }
+    try { await pushDav(); await pushMs(); lastErr = null; lastSync = new Date(); }
     catch (e) { lastErr = e.message; }
     saving = true; K.save(); saving = false; status(); scheduleReminders();
   }), 1200);
@@ -390,9 +567,10 @@ async function syncAll(manual) {
     if (!navigator.onLine) { offline = true; status(); return; }
     offline = false;
     const S = K.S, errs = [];
-    try { if (S.cals.some(c => c.acct && !c.ro)) await pushDav(); } catch (e) { errs.push(e.message); }
+    try { if (S.cals.some(c => c.acct && !c.ro && c.type !== "ms")) await pushDav(); } catch (e) { errs.push(e.message); }
+    try { if (S.cals.some(c => c.type === "ms" && !c.ro)) await pushMs(); } catch (e) { errs.push(e.message); }
     for (const cal of S.cals) {
-      try { if (cal.type === "ics" && cal.url) await pullIcs(cal); else if (cal.acct) await pullDav(cal); }
+      try { if (cal.type === "ics" && cal.url) await pullIcs(cal); else if (cal.type === "ms" && cal.acct) await pullMs(cal); else if (cal.acct) await pullDav(cal); }
       catch (e) { errs.push(cal.name + ": " + e.message); }
     }
     lastErr = errs[0] || null; lastSync = new Date();
@@ -464,5 +642,5 @@ window.KK_APP = k => {
 };
 
 // für Tests ohne App
-window.KK_TEST = { parseICS, toEvents, groupByUid, buildICS, matchDay, ruleOf, simpleRep, sig, setK: k => K = k, K: () => K, sync: m => syncAll(m) };
+window.KK_TEST = { msToEv, msBody, pushMs, pullMs, connectMs, parseICS, toEvents, groupByUid, buildICS, matchDay, ruleOf, simpleRep, sig, setK: k => K = k, K: () => K, sync: m => syncAll(m) };
 })();
