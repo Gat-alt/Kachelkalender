@@ -353,7 +353,8 @@ body.mode-on [data-drop]{cursor:copy}
 body.mode-on .col:hover,body.mode-on .tile:hover,body.mode-on .month .c:hover{outline:2px dashed var(--accent);outline-offset:-2px}
 /* Termin-Fenster: nur das Nötigste */
 .evsheet{padding:16px 16px 18px}
-.evform{display:grid;gap:12px}
+.evform{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+.evform>*{min-width:0}
 .ev-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .ev-top span{font-size:.78em;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
 .ev-top input{border:0;background:var(--surface-2);border-radius:999px;padding:5px 10px;font-weight:600;color:var(--fg)}
@@ -702,6 +703,34 @@ html[data-v="tiles"] .mic{bottom:calc(66px + env(safe-area-inset-bottom,0px))}
 html.land[data-v="tiles"] .mic{bottom:10px}
 @media (min-width:861px) and (min-height:501px){html[data-v="tiles"] .mic{bottom:20px}}
 body.placing .mic{opacity:0;pointer-events:none}
+
+/* Termin-Fenster: Mikrofon und einfache Zeitwahl */
+.ev-trow{display:flex;align-items:center;gap:8px}
+.ev-trow .ev-title{flex:1;min-width:0}
+.ev-mic{flex:none;width:46px;height:46px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;position:relative;box-shadow:var(--shadow)}
+.ev-mic svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;position:relative;z-index:1}
+.ev-mic[data-s="rec"]{background:#e5484d;color:#fff}
+.ev-mic[data-s="rec"] .mic-ring{position:absolute;inset:-6px;border-radius:50%;border:2px solid #e5484d;animation:micPulse 1.2s ease-out infinite}
+.ev-mic[data-s="busy"] svg{animation:micBusy 1s ease-in-out infinite}
+.ev-when{flex-direction:column;align-items:stretch;gap:8px}
+.tsum{display:flex;align-items:center;gap:12px}
+.tbtn{display:flex;align-items:baseline;gap:8px;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:8px 14px;color:var(--fg)}
+.tbtn .tl{font-size:.78em;color:var(--muted);font-weight:600}
+.tbtn b{font-size:1.5em;font-family:var(--font-display)}
+.tbtn[aria-expanded="true"]{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+.tto{color:var(--muted);font-weight:600}.tto b{color:var(--fg);font-size:1.15em}
+.tpick{background:var(--surface-2);border-radius:12px;padding:8px;display:grid;gap:8px;animation:pop .15s ease both}
+.tpick[hidden]{display:none}
+.tgrid-h{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
+.tmins{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.tpick button,.durs button{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:9px;padding:8px 0;font-weight:600;font-variant-numeric:tabular-nums}
+.tpick button[aria-pressed="true"],.durs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.durs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.durs::-webkit-scrollbar{display:none}
+.durs button{flex:none;padding:7px 12px;border-radius:999px;font-size:.9em}
+/* Neuer Termin: kurz aufleuchten, damit man sieht, wo er ist */
+@keyframes evFlash{0%,100%{box-shadow:0 0 0 0 transparent}30%{box-shadow:0 0 0 4px var(--accent)}}
+.flash{animation:evFlash 1s ease 2;z-index:6!important}
 </style>
 
 <div class="app" lang="de">
@@ -770,10 +799,15 @@ body.placing .mic{opacity:0;pointer-events:none}
     <form id="ev-form" class="evform">
       <div class="ev-scope" id="ev-scope" hidden role="group" aria-label="Änderung gilt für"><button type="button" data-scope="one" aria-pressed="true">Nur dieser Termin</button><button type="button" data-scope="all" aria-pressed="false">Ganze Serie</button></div>
       <div class="ev-top"><span id="ev-h">Neuer Termin</span><input type="date" id="ev-date" required aria-label="Datum"></div>
-      <input id="ev-title" class="ev-title" placeholder="z. B. Morgen 14 Uhr Zahnarzt 1h" aria-label="Titel oder Schnelleingabe" required autocomplete="off">
+      <div class="ev-trow"><input id="ev-title" class="ev-title" placeholder="Was? z. B. Zahnarzt" aria-label="Titel oder Schnelleingabe" required autocomplete="off"><button type="button" class="ev-mic" id="ev-mic" data-s="idle" aria-label="Termin sprechen"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="mic-ring" aria-hidden="true"></span></button></div>
       <div class="ev-hint" id="ev-hint" hidden></div>
       <div class="ev-span" id="ev-span" hidden>Bis <input type="date" id="ev-edate" aria-label="Letzter Tag"><span id="ev-days" class="num"></span></div>
-      <div class="ev-when" id="ev-times"><input type="time" id="ev-start" aria-label="Beginn"><span>–</span><input type="time" id="ev-end" aria-label="Ende"></div>
+      <div class="ev-when" id="ev-times">
+        <div class="tsum"><button type="button" class="tbtn" id="ev-tbtn" aria-expanded="false"><span class="tl">Beginn</span><b id="ev-tstart" class="num">09:00</b></button><span class="tto">bis <b id="ev-tend" class="num">10:00</b></span></div>
+        <div class="tpick" id="ev-tpick" hidden><div class="tgrid-h" id="ev-hrs"></div><div class="tmins" id="ev-mins"></div></div>
+        <div class="durs" id="ev-durs" role="group" aria-label="Dauer"></div>
+        <input type="time" id="ev-start" aria-label="Beginn" hidden><input type="time" id="ev-end" aria-label="Ende" hidden>
+      </div>
       <div class="ev-warn" id="ev-warn" hidden></div>
       <div class="ev-rep"><button type="button" class="adchip" id="ev-adbtn" aria-pressed="false">Ganztägig</button><label for="ev-rep">↻</label><select id="ev-rep" aria-label="Wiederholen"><option value="">Einmalig</option><option value="d">Täglich</option><option value="wd">Jeden Werktag (Mo–Fr)</option><option value="w">Jede Woche</option><option value="w2">Alle 2 Wochen</option><option value="m">Jeden Monat</option><option value="y">Jedes Jahr</option></select>
         <span id="ev-untilw" hidden>bis <input type="date" id="ev-until" aria-label="Wiederholen bis"></span></div>
@@ -1399,6 +1433,7 @@ function openEditor(e,ds){
   $("ev-cals").innerHTML=opts.map(c=>`<button type="button" class="calchip" data-pickcal="${c.id}" style="--c:${c.color};--ci:${ink(c.color)}" aria-pressed="${c.id===$("ev-cal").value}"><i></i>${esc(c.name)}</button>`).join("");
   const more=!!(e&&(e.loc||e.notes||e.allDay));$("ev-more").hidden=!more;$("ev-morebtn").hidden=more;
   const esh=$("ev-scrim").querySelector(".sheet"),ec=e?calOf(e.cal).color:"";esh.classList.toggle("tinted",!!e);esh.style.setProperty("--c",ec||"transparent");
+  $("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false);
   $("ev-scrim").hidden=false;setTimeout(()=>{$("ev-title").focus();checkWarn()},60);
 }
 /* ---------- Schnelleingabe in normaler Sprache ---------- */
@@ -1493,6 +1528,27 @@ function syncAllday(){const ad=$("ev-allday").checked;$("ev-times").hidden=ad;$(
 $("ev-adbtn").addEventListener("click",()=>{$("ev-allday").checked=!$("ev-allday").checked;syncAllday()});
 $("ev-allday").addEventListener("change",syncAllday);
 ["ev-date","ev-edate","ev-start","ev-end"].forEach(id=>$(id).addEventListener("change",()=>{if(id==="ev-date"&&$("ev-allday").checked&&$("ev-edate").value<$("ev-date").value)$("ev-edate").value=$("ev-date").value;syncAllday()}));
+/* ---------- Einfache Zeitwahl ---------- */
+{
+  const DUR=[[15,"15 Min."],[30,"30 Min."],[45,"45 Min."],[60,"1 Std."],[90,"1½ Std."],[120,"2 Std."],[180,"3 Std."],[240,"4 Std."]];
+  const sI=$("ev-start"),eI=$("ev-end"),vd=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value");
+  let busy=false;
+  const sync=()=>{if(busy)return;const a=mins(sI.value||"09:00"),b=mins(eI.value||"10:00"),d=b-a;
+    $("ev-tstart").textContent=sI.value||"–";$("ev-tend").textContent=eI.value||"–";
+    $("ev-durs").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.d===d));
+    $("ev-hrs").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.h===Math.floor(a/60)));
+    $("ev-mins").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.m===a%60))};
+  [sI,eI].forEach(el=>Object.defineProperty(el,"value",{configurable:true,get(){return vd.get.call(this)},set(v){vd.set.call(this,v);sync()}}));
+  $("ev-durs").innerHTML=DUR.map(([d,l])=>`<button type="button" data-d="${d}">${l}</button>`).join("");
+  let h="";for(let x=6;x<=23;x++)h+=`<button type="button" data-h="${x}">${x}</button>`;$("ev-hrs").innerHTML=h;
+  $("ev-mins").innerHTML=[0,15,30,45].map(m=>`<button type="button" data-m="${m}">:${pad(m)}</button>`).join("");
+  const setStart=a=>{const d=Math.max(15,mins(eI.value||"10:00")-mins(sI.value||"09:00"));busy=true;sI.value=toMin(a);eI.value=toMin(Math.min(a+d,24*60-1));busy=false;sync();syncAllday()};
+  $("ev-tbtn").onclick=()=>{const o=$("ev-tpick").hidden;$("ev-tpick").hidden=!o;$("ev-tbtn").setAttribute("aria-expanded",o)};
+  $("ev-hrs").onclick=e=>{const b=e.target.closest("[data-h]");if(!b)return;setStart(+b.dataset.h*60+mins(sI.value||"09:00")%60)};
+  $("ev-mins").onclick=e=>{const b=e.target.closest("[data-m]");if(!b)return;setStart(Math.floor(mins(sI.value||"09:00")/60)*60+ +b.dataset.m);$("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false)};
+  $("ev-durs").onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;eI.value=toMin(Math.min(mins(sI.value||"09:00")+ +b.dataset.d,24*60-1));syncAllday()};
+  sync();
+}
 /* Überschneidung live anzeigen */
 function checkWarn(){
   if($("ev-allday").checked||!$("ev-start").value||!$("ev-end").value){$("ev-warn").hidden=true;return}
@@ -1527,10 +1583,12 @@ $("ev-form").addEventListener("submit",ev=>{
       Object.assign(m,{...data,date:ymd(addDays(parse(m.date),shift))});m.rep={...m.rep,f:rf||m.rep.f,until};if(!rf){delete m.rep}}
     else if(o.sid){const dt=detach(o);Object.assign(dt.ev,data)}
     else{const real=S.ev.find(x=>x.id===o.id);Object.assign(real,data);if(rf)real.rep={f:rf,until,ex:(real.rep&&real.rep.ex)||[]};else delete real.rep}}
-  else S.ev.push({id:uid(),...data,...(rf?{rep:{f:rf,until,ex:[]}}:{})});
+  let newId=editing;if(!editing){newId=uid();S.ev.push({id:newId,...data,...(rf?{rep:{f:rf,until,ex:[]}}:{})})}
   if(!data.edate){for(const x of S.ev)if(x.edate===null)delete x.edate}
-  const cf=confText(conflicts({...data,id:editing||"__new"},editing));
+  const cf=confText(conflicts({...data,id:newId},newId));
   save();$("ev-scrim").hidden=true;cursor=parse(data.date);render();
+  setTimeout(()=>{const el=document.querySelector(`[data-ev="${newId}"]`)||document.querySelector(`[data-ev^="${newId}"]`);if(!el)return;
+    el.scrollIntoView({block:"center",inline:"nearest",behavior:"smooth"});el.classList.add("flash");setTimeout(()=>el.classList.remove("flash"),2200)},380);
   toast("Termin gespeichert",`${calOf(data.cal).name} · ${fmtDay(parse(data.date))}${data.edate?" – "+fmtDay(parse(data.edate)):""}${cf?" · "+cf:""}`,cf?7000:2600);
 });
 
@@ -2044,7 +2102,7 @@ if(window.KK_APP)window.KK_APP({get S(){return S},save,render,toast,calOf,uid,PA
 /* ---------- Spracheingabe: Whisper auf dem Gerät, keine Aufnahme verlässt das Handy ---------- */
 {
   const mic=$("mic"),WKEY=KEY+"-whisper";let W=null,rec=null,chunks=[],stream=null,stopT=null;
-  const st=s=>{mic.dataset.s=s;mic.setAttribute("aria-label",{idle:"Termin sprechen",rec:"Aufnahme beenden",busy:"Wird erkannt …"}[s])};
+  const mics=[mic,$("ev-mic")];const st=s=>mics.forEach(m=>{m.dataset.s=s;m.setAttribute("aria-label",{idle:"Termin sprechen",rec:"Aufnahme beenden",busy:"Wird erkannt …"}[s])});
   const ready=()=>{try{return localStorage.getItem(WKEY)==="1"}catch(e){return false}};
   const mod=async()=>{if(!W)W=await import("./whisper.mjs");return W};
   const mb=n=>Math.round(n/1e6);
@@ -2067,18 +2125,18 @@ if(window.KK_APP)window.KK_APP({get S(){return S},save,render,toast,calOf,uid,PA
       try{localStorage.setItem(WKEY,"1")}catch(e){}
       $("toast").hidden=true;st("idle");
       if(!text||text.length<2){toast("Nichts verstanden","Bitte nochmals deutlich sprechen.",3500);return}
-      newAt(view==="day"?ymd(cursor):ymd(new Date()));
+      if($("ev-scrim").hidden)newAt(view==="day"?ymd(cursor):ymd(new Date()));
       $("ev-title").value=text.replace(/[.!]+$/,"");$("ev-title").dispatchEvent(new Event("input"));
     }catch(e){st("idle");
       toast("Spracheingabe gerade nicht möglich",String(e&&e.message||e).includes("fetch")||!navigator.onLine?"Für die Einrichtung braucht es einmal Internet (WLAN empfohlen).":"Bitte später nochmals versuchen.",6000)}
   }
-  mic.onclick=()=>{
+  mics.forEach(m=>m.onclick=()=>{
     if(mic.dataset.s==="rec"){rec&&rec.state==="recording"&&rec.stop();return}
     if(mic.dataset.s==="busy")return;
     if(!navigator.mediaDevices||!window.MediaRecorder){toast("Spracheingabe geht hier nicht","Dieses Gerät oder dieser Browser unterstützt keine Aufnahme.",4000);return}
     if(!ready())toast("Termin sprechen?","Beim ersten Mal lädt die App die Spracherkennung (ca. 80 MB, am besten im WLAN). Deine Stimme bleibt immer auf dem Gerät.",12000,{label:"Los",fn:begin});
     else begin();
-  };
+  });
 }
 })();
 
