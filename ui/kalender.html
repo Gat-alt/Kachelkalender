@@ -1492,7 +1492,7 @@ function openEditor(e,ds){
   $("ev-loc").value=e?e.loc:"";
   $("ev-notes").value=e?e.notes||"":"";
   $("ev-remind").value=String(e?e.remind:S.set.remind);
-  $("ev-edate").value=e&&e.edate?e.edate:"";qDef=null;qActive=!e;$("ev-hint").hidden=true;
+  $("ev-edate").value=e&&e.edate?e.edate:"";qDef=null;qMan=false;window.KK_dur=0;qActive=!e;$("ev-hint").hidden=true;
   syncAllday();
   const del=$("ev-del");del.hidden=!e;del.classList.remove("armed");del.textContent=ser?"Diesen löschen":"Löschen";
   ["ev-title","ev-cal","ev-date","ev-allday","ev-start","ev-end","ev-loc"].forEach(id=>$(id).disabled=ro);
@@ -1506,7 +1506,7 @@ function openEditor(e,ds){
   $("ev-scrim").hidden=false;setTimeout(()=>{$("ev-title").focus();checkWarn()},60);
 }
 /* ---------- Schnelleingabe in normaler Sprache ---------- */
-let qDef=null,qActive=false;
+let qDef=null,qActive=false,qMan=false;
 const WDN=[["so","sonntag"],["mo","montag"],["di","dienstag"],["mi","mittwoch"],["do","donnerstag"],["fr","freitag"],["sa","samstag"]];
 /* Gesprochenes (Spracheingabe) in die Kurzform übersetzen: «eine Stunde» → 1h, «halb drei» → 2:30 usw. */
 const NUMW={ein:1,eins:1,eine:1,einer:1,einem:1,zwei:2,drei:3,vier:4,"fünf":5,sechs:6,sieben:7,acht:8,neun:9,zehn:10,elf:11,"zwölf":12,dreizehn:13,vierzehn:14,"fünfzehn":15,sechzehn:16,siebzehn:17,achtzehn:18,neunzehn:19,zwanzig:20,dreissig:30,"dreißig":30,vierzig:40,"fünfundvierzig":45,"fünfzig":50};
@@ -1572,11 +1572,14 @@ function parseQuick(raw){
   r.title=r.title.charAt(0).toUpperCase()+r.title.slice(1);
   return r;
 }
+/* Von Hand gewählte Zeit/Dauer bleibt, auch wenn man danach am Titel weiterschreibt */
+function qTouch(){if(!qActive)return;qMan=true;if(qDef){qDef.start=$("ev-start").value;qDef.end=$("ev-end").value}}
 function applyQuick(){
   if(!qActive)return;
   if(!qDef)qDef={date:$("ev-date").value,start:$("ev-start").value,end:$("ev-end").value,ad:$("ev-allday").checked,ed:$("ev-edate").value,rep:$("ev-rep").value,cal:$("ev-cal").value,loc:$("ev-loc").value};
   const p=parseQuick($("ev-title").value);
-  $("ev-date").value=p.date?ymd(p.date):qDef.date;$("ev-start").value=p.start!=null?toMin(p.start):qDef.start;$("ev-end").value=p.end!=null?toMin(p.end):qDef.end;
+  $("ev-date").value=p.date?ymd(p.date):qDef.date;if(qMan){qDef.start=$("ev-start").value;qDef.end=$("ev-end").value}
+  else{$("ev-start").value=p.start!=null?toMin(p.start):qDef.start;$("ev-end").value=p.end!=null?toMin(p.end):qDef.end}
   $("ev-allday").checked=p.allDay!=null?p.allDay:qDef.ad;$("ev-edate").value=p.edate?ymd(p.edate):(p.date?ymd(p.date):qDef.ed);
   $("ev-rep").value=p.rep||qDef.rep;$("ev-untilw").hidden=!$("ev-rep").value;
   const cal=p.cal||qDef.cal;$("ev-cal").value=cal;$("ev-cals").querySelectorAll("[data-pickcal]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.pickcal===cal));
@@ -1611,11 +1614,11 @@ $("ev-allday").addEventListener("change",syncAllday);
   $("ev-durs").innerHTML=DUR.map(([d,l])=>`<button type="button" data-d="${d}">${l}</button>`).join("");
   let h="";for(let x=6;x<=23;x++)h+=`<button type="button" data-h="${x}">${x}</button>`;$("ev-hrs").innerHTML=h;
   $("ev-mins").innerHTML=[0,15,30,45].map(m=>`<button type="button" data-m="${m}">:${pad(m)}</button>`).join("");
-  const setStart=a=>{const d=Math.max(15,mins(eI.value||"10:00")-mins(sI.value||"09:00"));busy=true;sI.value=toMin(a);eI.value=toMin(Math.min(a+d,24*60-1));busy=false;sync();syncAllday()};
+  const setStart=a=>{const d=window.KK_dur||Math.max(15,mins(eI.value||"10:00")-mins(sI.value||"09:00"));qTouch();busy=true;sI.value=toMin(a);eI.value=toMin(Math.min(a+d,24*60-1));busy=false;sync();syncAllday()};
   $("ev-tbtn").onclick=()=>{const o=$("ev-tpick").hidden;$("ev-tpick").hidden=!o;$("ev-tbtn").setAttribute("aria-expanded",o)};
   $("ev-hrs").onclick=e=>{const b=e.target.closest("[data-h]");if(!b)return;setStart(+b.dataset.h*60+mins(sI.value||"09:00")%60)};
   $("ev-mins").onclick=e=>{const b=e.target.closest("[data-m]");if(!b)return;setStart(Math.floor(mins(sI.value||"09:00")/60)*60+ +b.dataset.m);$("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false)};
-  $("ev-durs").onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;eI.value=toMin(Math.min(mins(sI.value||"09:00")+ +b.dataset.d,24*60-1));syncAllday()};
+  $("ev-durs").onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;window.KK_dur=+b.dataset.d;qTouch();eI.value=toMin(Math.min(mins(sI.value||"09:00")+ +b.dataset.d,24*60-1));syncAllday()};
   sync();
 }
 /* Überschneidung live anzeigen */
