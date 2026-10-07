@@ -2062,7 +2062,9 @@ function closePeek(then){
   setTimeout(()=>{pk.hidden=true;$("peek-scrim").hidden=true;peekId=null;if(then)then()},then?120:240);
 }
 $("peek-scrim").addEventListener("click",e=>{e.stopPropagation();closePeek()});
-$("peek").addEventListener("click",e=>{e.stopPropagation();const a=e.target.closest("[data-url]");if(a){e.preventDefault();openLink(a.dataset.url)}});
+$("peek").addEventListener("click",e=>{e.stopPropagation();const a=e.target.closest("[data-url]");if(a){e.preventDefault();openLink(a.dataset.url);return}
+  /* nochmals auf die Karte tippen: wieder klein */
+  if(e.target.closest("button"))return;const sel=getSelection&&getSelection();if(sel&&String(sel).trim())return;closePeek()});
 $("pk-edit").onclick=()=>{const o=findEv(peekId);closePeek(()=>{if(o)openEditor(o)})};
 $("pk-more").onclick=()=>{const o=findEv(peekId),el=o&&document.querySelector(`#view [data-ev="${CSS.escape(o.id)}"]`);closePeek(()=>{if(o)openActions(el||document.body,o)})};
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("peek").hidden)closePeek()});
