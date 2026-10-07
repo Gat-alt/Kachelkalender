@@ -37,6 +37,8 @@ const sec = () => { try { return JSON.parse(localStorage.getItem(SEC)) || {}; } 
 const setSec = o => { try { localStorage.setItem(SEC, JSON.stringify(o)); } catch (e) {} };
 
 /* ---------- Netzwerk ---------- */
+// Links aus Terminen im Browser bzw. in der passenden App öffnen (Teams, Zoom, E-Mail …)
+window.KK_openUrl = u => { if (T.opener && T.opener.openUrl) return T.opener.openUrl(u); window.open(u, "_blank", "noopener"); };
 const hfetch = (url, opt) => (T.http && T.http.fetch ? T.http.fetch(url, opt) : fetch(url, opt));
 const b64 = s => btoa(unescape(encodeURIComponent(s)));
 function authHeaders(acct) {
@@ -199,6 +201,7 @@ function toEvents(list, cal, meta, win) {
     const rid = p["RECURRENCE-ID"] ? p["RECURRENCE-ID"].v : "";
     const ev = { id: "r" + hash(cal.id + "|" + uid + "|" + rid + (extra && extra.occ ? "|" + extra.occ : "")), uid, cal: cal.id,
       title: unesc(p.SUMMARY && p.SUMMARY.v) || "(ohne Titel)", date: s.d, loc: unesc(p.LOCATION && p.LOCATION.v), notes: unesc(p.DESCRIPTION && p.DESCRIPTION.v) };
+    if (p.URL && p.URL.v) ev.url = unesc(p.URL.v);
     if (!s.t) { ev.allDay = true; ev.start = ""; ev.end = ""; const ed = e && e.d > s.d ? K.ymd(K.addDays(K.parse(e.d), -1)) : s.d; if (ed > s.d) ev.edate = ed; }
     else {
       ev.start = s.t;
@@ -257,6 +260,7 @@ function buildICS(e) {
   L.push("SUMMARY:" + icsEsc(e.title));
   if (e.loc) L.push("LOCATION:" + icsEsc(e.loc));
   if (e.notes) L.push("DESCRIPTION:" + icsEsc(e.notes));
+  if (e.url) L.push("URL:" + e.url);
   if (e.free) L.push("TRANSP:TRANSPARENT");
   if (e.rep) {
     const RR = { d: "FREQ=DAILY", wd: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", w: "FREQ=WEEKLY", w2: "FREQ=WEEKLY;INTERVAL=2", m: "FREQ=MONTHLY", y: "FREQ=YEARLY" }[e.rep.f];
@@ -479,6 +483,7 @@ async function connectMs({ name, color, f, ro }) {
 function msToEv(g, cal) {
   const ev = { id: "m" + hash(cal.id + "|" + g.id), gid: g.id, cal: cal.id, rcal: cal.id, title: g.subject || "(ohne Titel)",
     loc: (g.location && g.location.displayName) || "", notes: (g.bodyPreview || "").trim() };
+  if (g.onlineMeeting && g.onlineMeeting.joinUrl) ev.url = g.onlineMeeting.joinUrl;
   if (g.isAllDay) {
     ev.allDay = true; ev.start = ""; ev.end = ""; ev.date = g.start.dateTime.slice(0, 10);
     const ed = K.ymd(K.addDays(K.parse(g.end.dateTime.slice(0, 10)), -1)); if (ed > ev.date) ev.edate = ed;
@@ -497,7 +502,7 @@ function msToEv(g, cal) {
 }
 async function pullMs(cal) {
   const w = win(), S = K.S, fresh = [], seen = new Set();
-  let url = `/me/calendars/${encodeURIComponent(cal.gcal)}/calendarView?startDateTime=${w.a.toISOString()}&endDateTime=${w.b.toISOString()}&$top=500&$select=id,subject,start,end,isAllDay,location,bodyPreview,isReminderOn,reminderMinutesBeforeStart,showAs,isCancelled`;
+  let url = `/me/calendars/${encodeURIComponent(cal.gcal)}/calendarView?startDateTime=${w.a.toISOString()}&endDateTime=${w.b.toISOString()}&$top=500&$select=id,subject,start,end,isAllDay,location,bodyPreview,onlineMeeting,isReminderOn,reminderMinutesBeforeStart,showAs,isCancelled`;
   while (url) {
     const j = (await graph(cal.acct, "GET", url)) || {};
     (j.value || []).forEach(g => { if (g.isCancelled) return; seen.add(g.id); fresh.push(msToEv(g, cal)); });

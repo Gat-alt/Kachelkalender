@@ -7,6 +7,10 @@
     "core:default",
     "notification:default",
     {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }, { "url": "http://*" }, { "url": "mailto:*" }, { "url": "tel:*" }]
+    },
+    {
       "identifier": "http:default",
       "allow": [{ "url": "https://*" }, { "url": "https://*:*" }]
     }

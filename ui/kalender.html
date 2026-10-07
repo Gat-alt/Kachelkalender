@@ -21,13 +21,24 @@ html{transition:background-color .25s ease}
   transition:left .26s cubic-bezier(.2,.8,.2,1),top .26s cubic-bezier(.2,.8,.2,1),width .26s cubic-bezier(.2,.8,.2,1),height .26s cubic-bezier(.2,.8,.2,1),border-radius .26s ease}
 .peek .pk-in{opacity:0;transition:opacity .18s ease .1s;display:flex;flex-direction:column;min-height:0;flex:1}
 .peek.on .pk-in{opacity:1}
-.pk-head{background:var(--c);color:var(--ci);padding:14px 16px 12px}
-.pk-cal{font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85}
+.pk-head{background:color-mix(in srgb,var(--c) var(--tint-m),var(--surface));color:var(--fg);border-left:6px solid var(--c);padding:14px 16px 12px}
+.pk-cal{color:var(--muted)}
+html.strong .pk-head{background:linear-gradient(160deg,var(--cp),var(--cp2));color:var(--cink);border-left-color:var(--ce)}
+html.strong .pk-cal{color:inherit;opacity:.7}
+html.strong .pk-btns .pk-edit{background:var(--ce);color:#fff}
+.pk-cal{font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
 .pk-title{font-family:var(--font-display);font-size:1.35em;line-height:1.2;margin-top:2px;overflow-wrap:anywhere;user-select:text}
 .pk-body{padding:12px 16px 4px;overflow:auto;min-height:0;flex:1;user-select:text}
 .pk-row{display:flex;gap:10px;align-items:flex-start;margin:0 0 10px;line-height:1.35;overflow-wrap:anywhere}
 .pk-row svg{width:18px;height:18px;flex:none;margin-top:1px;stroke:var(--muted);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .pk-notes{white-space:pre-wrap}
+.pk-row a{color:var(--accent);text-decoration:underline;text-underline-offset:2px;word-break:break-all;cursor:pointer}
+.pk-link{display:flex;align-items:center;gap:8px;width:100%;margin:2px 0 12px;border:1px solid var(--line);background:var(--surface-2);color:var(--accent);border-radius:12px;padding:10px 12px;font:inherit;font-weight:650;text-align:left;cursor:pointer}
+.pk-link svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.pk-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.pk-link small{display:block;color:var(--muted);font-weight:500;font-size:.8em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet,.pk-body{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.rb-back{transition:transform .38s cubic-bezier(.2,.9,.25,1.15)!important}
 .pk-btns{display:flex;gap:8px;padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
 .pk-btns button{flex:1;border:1px solid var(--line);background:var(--surface-2);color:inherit;border-radius:12px;padding:11px 6px;font-weight:600;font:inherit;font-weight:600}
 .pk-btns .pk-edit{background:var(--c);color:var(--ci);border-color:transparent}
@@ -546,8 +557,10 @@ html.solid .month .ev,.month .ev.hl{background:var(--c);color:var(--ci)}
 .month .mi.span .tl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;-webkit-line-clamp:unset}
 /* Aktionsfenster in der Kalenderfarbe */
 .sheet.act{background:color-mix(in srgb,var(--c,var(--surface)) 9%,var(--surface));border-top:4px solid var(--c,transparent)}
-.sheet.act .act-head{background:var(--c);color:var(--ci);border-radius:14px;padding:12px 14px;margin:-2px -2px 14px}
-.sheet.act .act-head small{color:inherit;opacity:.85}
+.sheet.act .act-head{background:color-mix(in srgb,var(--c) var(--tint-m),var(--surface));color:var(--fg);border-left:6px solid var(--c);border-radius:14px;padding:12px 14px;margin:-2px -2px 14px}
+.sheet.act .act-head small{color:var(--muted)}
+html.strong .sheet.act .act-head{background:linear-gradient(160deg,var(--cp),var(--cp2));color:var(--cink);border-left-color:var(--ce)}
+html.strong .sheet.act .act-head small{color:inherit;opacity:.72}
 .sheet.act .act-dot{display:none}
 .act-cal{display:inline-block;font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85;margin-bottom:2px}
 .sheet.act .act-grid button{background:color-mix(in srgb,var(--c,var(--surface-2)) 10%,var(--surface))}
@@ -760,9 +773,9 @@ body.placing .mic{opacity:0;pointer-events:none}
 .mscode .btn{justify-self:start}
 
 /* Pastell: frische, weiche Farben, trotzdem gut sichtbar; gilt für die ganze App */
-.ev,.cchip,.calchip,.sheet.act,.evsheet.tinted{--cp:color-mix(in srgb,var(--c) 45%,#fff);--cp2:color-mix(in srgb,var(--c) 30%,#fff);--ce:var(--c);--cink:#16202c}
+.ev,.cchip,.calchip,.sheet.act,.evsheet.tinted,.peek{--cp:color-mix(in srgb,var(--c) 45%,#fff);--cp2:color-mix(in srgb,var(--c) 30%,#fff);--ce:var(--c);--cink:#16202c}
 @supports (color:oklch(from red l c h)){
-  .ev,.cchip,.calchip,.sheet.act,.evsheet.tinted{--cp:oklch(from var(--c) .85 clamp(.09,calc(c * .7),.15) h);--cp2:oklch(from var(--c) .93 clamp(.06,calc(c * .5),.1) h);--ce:oklch(from var(--c) .62 clamp(.1,c,.2) h)}}
+  .ev,.cchip,.calchip,.sheet.act,.evsheet.tinted,.peek{--cp:oklch(from var(--c) .85 clamp(.09,calc(c * .7),.15) h);--cp2:oklch(from var(--c) .93 clamp(.06,calc(c * .5),.1) h);--ce:oklch(from var(--c) .62 clamp(.1,c,.2) h)}}
 html.strong{--edge:0px}
 html.strong .ev{background:linear-gradient(160deg,var(--cp),var(--cp2));color:var(--cink);border:1.5px solid var(--ce);border-left:4px solid var(--ce);font-weight:650;box-shadow:0 3px 12px -4px var(--ce),inset 0 1px 0 rgba(255,255,255,.7)}
 html.strong .ev .n{color:inherit;opacity:1}
@@ -951,7 +964,7 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
 <div class="peek" id="peek" role="dialog" aria-modal="true" aria-labelledby="pk-title" hidden>
   <div class="pk-in">
     <div class="pk-head"><div class="pk-cal" id="pk-cal"></div><div class="pk-title" id="pk-title"></div></div>
-    <div class="pk-body" id="pk-body"></div>
+    <div class="pk-body" id="pk-body"><div id="pk-inner"></div></div>
     <div class="pk-btns"><button type="button" id="pk-more">Mehr …</button><button type="button" class="pk-edit" id="pk-edit">Bearbeiten</button></div>
   </div>
 </div>
@@ -1988,9 +2001,33 @@ function openActions(el,ev){
     $("act-note").hidden=!ro;$("act-hl").querySelector("span").textContent=ev.hl?"Nicht mehr hervorheben":"Hervorheben";$("act-hl").classList.toggle("on",!!ev.hl);$("act-scrim").hidden=false;
   },320);
 }
+
+/* Links in Terminen erkennen und öffnen */
+const LINK_RE=/\b(?:https?:\/\/|www\.)[^\s<>"']+|\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/gi;
+const cleanLink=u=>{u=u.replace(/[.,;:!?)\]>]+$/,"");if(/^www\./i.test(u))u="https://"+u;else if(!/^https?:/i.test(u)&&u.includes("@"))u="mailto:"+u;return u};
+function findLinks(t){return t?(String(t).match(LINK_RE)||[]).map(cleanLink):[]}
+function linkify(t){let out="",i=0;String(t).replace(LINK_RE,(m,off)=>{const u=cleanLink(m),shown=m.replace(/[.,;:!?)\]>]+$/,"");out+=esc(t.slice(i,off))+`<a data-url="${esc(u)}" href="${esc(u)}">${esc(shown)}</a>`+esc(m.slice(shown.length));i=off+m.length;return m});return out+esc(String(t).slice(i))}
+function linkName(u){if(/teams\.microsoft|teams\.live/i.test(u))return"Teams-Besprechung öffnen";if(/zoom\.us/i.test(u))return"Zoom öffnen";if(/meet\.google/i.test(u))return"Google Meet öffnen";if(/webex/i.test(u))return"Webex öffnen";if(/^mailto:/i.test(u))return"E-Mail schreiben";return"Link öffnen"}
+function openLink(u){if(!/^(https?:|mailto:|tel:)/i.test(u))return;try{if(window.KK_openUrl){window.KK_openUrl(u);return}}catch(e){}window.open(u,"_blank","noopener")}
+/* Fenster: weich nachfedern, auch wenn es oben oder unten nicht weitergeht */
+(function(){let rb=null;
+  const tgt=el=>el.id==="pk-body"?$("pk-inner"):el;
+  document.addEventListener("touchstart",e=>{if(e.touches.length!==1)return;const el=e.target.closest(".sheet,#pk-body");if(!el||e.target.closest("textarea,input[type=range],select"))return;
+    const t=e.touches[0];rb={el,x:t.clientX,y:t.clientY,ly:t.clientY,ov:0,dir:0};tgt(el).classList.remove("rb-back")},{passive:true});
+  document.addEventListener("touchmove",e=>{if(!rb)return;const t=e.touches[0],el=rb.el,dy=t.clientY-rb.ly;rb.ly=t.clientY;
+    if(!rb.dir){if(Math.abs(t.clientY-rb.y)<4&&Math.abs(t.clientX-rb.x)<4)return;rb.dir=Math.abs(t.clientY-rb.y)>=Math.abs(t.clientX-rb.x)?1:-1}
+    if(rb.dir<0)return;
+    const top=el.scrollTop<=0,bot=el.scrollTop+el.clientHeight>=el.scrollHeight-1;
+    if(rb.ov!==0||(top&&dy>0)||(bot&&dy<0)){
+      const n=rb.ov+dy;rb.ov=(rb.ov>0&&n<0)||(rb.ov<0&&n>0)?0:n;
+      if(rb.ov===0&&!((top&&dy>0)||(bot&&dy<0))){tgt(el).style.transform="";return}
+      if(e.cancelable)e.preventDefault();const d=Math.sign(rb.ov)*Math.min(140,Math.pow(Math.abs(rb.ov),.82));tgt(el).style.transform=`translateY(${d}px)`}},{passive:false});
+  const end=()=>{if(!rb)return;const x=tgt(rb.el);if(rb.ov){x.classList.add("rb-back");x.style.transform="";setTimeout(()=>x.classList.remove("rb-back"),400)}rb=null};
+  document.addEventListener("touchend",end);document.addEventListener("touchcancel",end);
+})();
 /* Termin-Lupe: der angetippte Termin wächst zu einer grossen Karte */
 let peekId=null,peekFrom=null;
-const IC={time:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',loc:'<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',rep:'<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3M20 4v4h-4M20 12a8 8 0 0 1-14 5.3M4 20v-4h4"/></svg>',note:'<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7"/></svg>',ro:'<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'};
+const IC={time:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',loc:'<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',rep:'<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3M20 4v4h-4M20 12a8 8 0 0 1-14 5.3M4 20v-4h4"/></svg>',link:'<svg viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></svg>',note:'<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7"/></svg>',ro:'<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'};
 function peekTarget(r){
   const vw=innerWidth,vh=innerHeight,w=Math.min(380,vw-24),pk=$("peek");
   pk.style.width=w+"px";pk.style.height="auto";const h=Math.min(pk.scrollHeight,vh-40);
@@ -2006,10 +2043,12 @@ function openPeek(el,ev){
   const row=(i,t,cls)=>`<div class="pk-row${cls?" "+cls:""}">${IC[i]}<div>${t}</div></div>`;
   let b=row("time",esc(fmtDay(parse(ev.date)))+"<br>"+(ev.allDay?"ganztägig":esc(ev.start)+" – "+esc(ev.end)+" Uhr"));
   if(ev.sid){const m=S.ev.find(x=>x.id===ev.sid);if(m)b+=row("rep",esc(repText(m)))}
-  if(ev.loc)b+=row("loc",esc(ev.loc));
-  if(ev.notes)b+=row("note",esc(ev.notes),"pk-notes");
+  const MEET=/teams\.(microsoft|live)|zoom\.us|meet\.google|webex/i,links=[...new Set([ev.url,...findLinks(ev.loc),...findLinks(ev.notes)].filter(Boolean))].sort((x,y)=>(x===ev.url?-2:MEET.test(x)?-1:/^mailto:/.test(x)?1:0)-(y===ev.url?-2:MEET.test(y)?-1:/^mailto:/.test(y)?1:0));
+  if(links.length){const u=links[0];b=`<button type="button" class="pk-link" data-url="${esc(u)}">${IC.link}<div style="min-width:0"><span>${linkName(u)}</span><small>${esc(u.replace(/^https?:\/\//,""))}</small></div></button>`+b}
+  if(ev.loc)b+=row("loc",linkify(ev.loc));
+  if(ev.notes)b+=row("note",linkify(ev.notes),"pk-notes");
   if(ro)b+=row("ro","Nur zum Lesen");
-  $("pk-body").innerHTML=b;$("pk-edit").textContent=ro?"Ansehen":"Bearbeiten";
+  $("pk-inner").innerHTML=b;$("pk-edit").textContent=ro?"Ansehen":"Bearbeiten";
   const r=el.getBoundingClientRect();peekFrom=r;
   pk.classList.remove("on");pk.style.transition="none";pk.hidden=false;$("peek-scrim").hidden=false;
   const to=peekTarget(r);setBox(pk,{l:r.left,t:r.top,w:Math.max(r.width,40),h:Math.max(r.height,24)});pk.style.borderRadius="8px";
@@ -2023,7 +2062,7 @@ function closePeek(then){
   setTimeout(()=>{pk.hidden=true;$("peek-scrim").hidden=true;peekId=null;if(then)then()},then?120:240);
 }
 $("peek-scrim").addEventListener("click",e=>{e.stopPropagation();closePeek()});
-$("peek").addEventListener("click",e=>e.stopPropagation());
+$("peek").addEventListener("click",e=>{e.stopPropagation();const a=e.target.closest("[data-url]");if(a){e.preventDefault();openLink(a.dataset.url)}});
 $("pk-edit").onclick=()=>{const o=findEv(peekId);closePeek(()=>{if(o)openEditor(o)})};
 $("pk-more").onclick=()=>{const o=findEv(peekId),el=o&&document.querySelector(`#view [data-ev="${CSS.escape(o.id)}"]`);closePeek(()=>{if(o)openActions(el||document.body,o)})};
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("peek").hidden)closePeek()});
