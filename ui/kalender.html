@@ -742,19 +742,26 @@ body.placing .mic{opacity:0;pointer-events:none}
 .mscode b.num{font-size:1.9em;letter-spacing:.12em;font-family:var(--font-display);color:var(--fg);background:var(--surface);border:1px dashed var(--accent);border-radius:12px;padding:8px 12px;text-align:center;user-select:all}
 .mscode .btn{justify-self:start}
 
-/* Kräftige Farben: gilt für die ganze App */
-html.strong{--tint:58%;--tint-m:72%;--edge:5px}
-html.strong:is([data-theme="dim"],[data-theme="dark"]){--tint:50%;--tint-m:64%}
-@media (prefers-color-scheme: dark){html.strong:not([data-theme="light"]){--tint:50%;--tint-m:64%}}
-html.strong .ev{font-weight:650}
-html.strong .ev .t,html.strong .ev .l,html.strong .ev .tm,html.strong .col .bar .t,html.strong .bar.tint .t,html.strong .bar.tint .l{color:var(--fg);opacity:.8}
-html.strong .cchip:not([aria-pressed="false"]){background:color-mix(in srgb,var(--c) 42%,var(--surface));border-color:var(--c)}
-html.strong .cchip:not([aria-pressed="false"]) i{box-shadow:0 0 0 2px var(--surface)}
-html.strong .month .mi i,html.strong .pli .bdot{width:9px;height:9px}
-html.strong .evsheet.tinted{background:color-mix(in srgb,var(--c) 16%,var(--surface));border-top-width:6px}
-html.strong .sheet.act{background:color-mix(in srgb,var(--c,var(--surface)) 16%,var(--surface));border-top-width:6px}
-html.strong .sheet.act .act-grid button{background:color-mix(in srgb,var(--c,var(--surface-2)) 20%,var(--surface))}
-html.strong .col.tcol{background-color:color-mix(in srgb,var(--today) 10%,var(--surface))}
+/* Leuchtende Farben: gilt für die ganze App */
+html.strong{--edge:0px}
+.ev,.cchip,.calchip,.sheet.act,.evsheet.tinted{--cv:var(--c)}
+@supports (color:oklch(from red l c h)){
+  .ev,.cchip,.calchip,.sheet.act,.evsheet.tinted{--cv:oklch(from var(--c) clamp(.52,calc(l + .04),.72) calc(c * 1.3) h)}}
+html.strong .ev{background:linear-gradient(135deg,var(--cv),color-mix(in oklab,var(--cv) 72%,#fff));color:var(--ci);border-left:0;font-weight:650;
+  box-shadow:0 3px 12px -3px color-mix(in srgb,var(--cv) 60%,transparent),inset 0 1px 0 rgba(255,255,255,.28)}
+html.strong .ev .t,html.strong .ev .l,html.strong .ev .tm,html.strong .ev .n{color:inherit;opacity:.9}
+html.strong .ev .t,html.strong .ev .l,html.strong .ev .tm{opacity:.82}
+html.strong:is([data-theme="dim"],[data-theme="dark"]) .ev{box-shadow:0 0 14px -2px color-mix(in srgb,var(--cv) 65%,transparent),inset 0 1px 0 rgba(255,255,255,.22)}
+@media (prefers-color-scheme: dark){html.strong:not([data-theme="light"]) .ev{box-shadow:0 0 14px -2px color-mix(in srgb,var(--cv) 65%,transparent),inset 0 1px 0 rgba(255,255,255,.22)}}
+html.strong .ev.hl{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--cv),0 4px 16px -2px color-mix(in srgb,var(--cv) 70%,transparent)}
+html.strong .cchip:not([aria-pressed="false"]){background:linear-gradient(135deg,var(--cv),color-mix(in oklab,var(--cv) 72%,#fff));border-color:transparent;color:var(--ci);box-shadow:0 2px 10px -3px color-mix(in srgb,var(--cv) 60%,transparent)}
+html.strong .cchip:not([aria-pressed="false"]) i{background:var(--ci);box-shadow:none}
+html.strong .calchip[aria-pressed="true"]{background:linear-gradient(135deg,var(--cv),color-mix(in oklab,var(--cv) 72%,#fff));box-shadow:0 2px 10px -3px color-mix(in srgb,var(--cv) 60%,transparent)}
+html.strong .evsheet.tinted{background:color-mix(in srgb,var(--cv) 14%,var(--surface));border-top:6px solid var(--cv)}
+html.strong .sheet.act{background:color-mix(in srgb,var(--cv,var(--surface)) 14%,var(--surface));border-top:6px solid var(--cv,transparent)}
+html.strong .sheet.act .act-head{background:linear-gradient(135deg,var(--cv),color-mix(in oklab,var(--cv) 72%,#fff))}
+html.strong .month .mi i,html.strong .pli .bdot{width:9px;height:9px;box-shadow:0 0 6px var(--c)}
+html.strong .col.tcol{background-color:color-mix(in srgb,var(--today) 9%,var(--surface))}
 </style>
 
 <div class="app" lang="de">
@@ -875,7 +882,7 @@ html.strong .col.tcol{background-color:color-mix(in srgb,var(--today) 10%,var(--
         <label>Darstellung<select id="set-theme"><option value="">Wie System</option><option value="light">Hell</option><option value="dim">Mittel (Schiefer)</option><option value="dark">Dunkel</option></select></label>
         <label>Schriftgrösse<select id="set-font"><option value="13px">Klein</option><option value="14.5px">Mittel</option><option value="16px">Gross</option><option value="18px">Sehr gross</option></select></label>
       </div>
-      <label>Termin-Farben<select id="set-style"><option value="tint">Normal (hell mit Farbrand)</option><option value="strong">Kräftig (stärkere Farben überall)</option><option value="fill">Voll eingefärbt</option></select></label>
+      <label>Termin-Farben<select id="set-style"><option value="tint">Normal (hell mit Farbrand)</option><option value="strong">Leuchtend (kräftig, modern)</option></select></label>
       <label>Beim Drehen ins Querformat<select id="set-rot"><option value="grid">Woche zeigen</option><option value="work">Mo–Fr zeigen</option><option value="month">Monat zeigen</option><option value="tiles">Kacheln zeigen</option><option value="none">Ansicht nicht wechseln</option></select></label>
       <label class="inline"><input type="checkbox" id="set-gaps"> Freie Zeit zwischen Terminen als Abstand zeigen</label>
       <label class="inline"><input type="checkbox" id="set-kw"> Wochennummern anzeigen</label>
@@ -1389,8 +1396,9 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-caledit]")
 
 /* ---------- Hauptdarstellung ---------- */
 function render(anim){document.documentElement.dataset.v=view;
-  document.documentElement.classList.toggle("solid",S.set.style==="fill");
-  document.documentElement.classList.toggle("strong",S.set.style==="strong"||S.set.style==="fill");
+  if(S.set.style==="fill")S.set.style="strong";
+  document.documentElement.classList.toggle("solid",false);
+  document.documentElement.classList.toggle("strong",S.set.style==="strong");
   document.documentElement.classList.toggle("land",isLand());
   document.documentElement.style.setProperty("--fs",S.set.font);
   if(S.set.theme) document.documentElement.dataset.theme=S.set.theme; else delete document.documentElement.dataset.theme;
@@ -1647,7 +1655,7 @@ const onKey=()=>S.cals.filter(c=>c.on).map(c=>c.id).sort().join();
 function renderCalbar(){const b=$("calbar");if(!b)return;b.hidden=S.set.cbar===false;if(b.hidden)return;const k=onKey();
   b.innerHTML=(S.sets||[]).map(st=>`<button type="button" class="schip" data-cset="${st.id}" aria-pressed="${setIds(st).sort().join()===k}">${esc(st.name)}</button>`).join("")+
     (S.sets&&S.sets.length?`<span class="calsep" aria-hidden="true"></span>`:"")+
-    S.cals.map(c=>`<button type="button" class="cchip" style="--c:${c.color}" data-ctog="${c.id}" aria-pressed="${!!c.on}" title="Antippen: ein/aus · lange drücken: nur diesen"><i></i>${esc(c.name)}</button>`).join("")}
+    S.cals.map(c=>`<button type="button" class="cchip" style="--c:${c.color};--ci:${ink(c.color)}" data-ctog="${c.id}" aria-pressed="${!!c.on}" title="Antippen: ein/aus · lange drücken: nur diesen"><i></i>${esc(c.name)}</button>`).join("")}
 let cbHold=null;
 $("calbar").addEventListener("pointerdown",e=>{const b=e.target.closest("[data-ctog]");if(!b)return;
   cbHold={id:b.dataset.ctog,x:e.clientX,y:e.clientY,done:false,t:setTimeout(()=>{if(!cbHold)return;cbHold.done=true;S.cals.forEach(c=>c.on=c.id===b.dataset.ctog);save();render();
@@ -1662,7 +1670,7 @@ $("calbar").addEventListener("click",e=>{
 function renderSets(){
   $("set-cbar").checked=S.set.cbar!==false;
   $("setlist").innerHTML=(S.sets||[]).map(st=>`<div class="setrow"><div class="sr-top"><input value="${esc(st.name)}" data-setname="${st.id}" aria-label="Name des Sets"${st.all?" disabled":""}>${st.all?"":`<button type="button" class="sr-del" data-setdel="${st.id}" aria-label="Set ${esc(st.name)} löschen">✕</button>`}</div>
-    ${st.all?`<small style="color:var(--muted)">Zeigt immer alle Kalender</small>`:`<div class="sr-cals">${S.cals.map(c=>`<button type="button" class="cchip" style="--c:${c.color}" data-setcal="${st.id}|${c.id}" aria-pressed="${(st.cals||[]).includes(c.id)}"><i></i>${esc(c.name)}</button>`).join("")}</div>`}</div>`).join("")}
+    ${st.all?`<small style="color:var(--muted)">Zeigt immer alle Kalender</small>`:`<div class="sr-cals">${S.cals.map(c=>`<button type="button" class="cchip" style="--c:${c.color};--ci:${ink(c.color)}" data-setcal="${st.id}|${c.id}" aria-pressed="${(st.cals||[]).includes(c.id)}"><i></i>${esc(c.name)}</button>`).join("")}</div>`}</div>`).join("")}
 $("setlist").addEventListener("click",e=>{
   const d=e.target.closest("[data-setdel]");if(d){S.sets=S.sets.filter(x=>x.id!==d.dataset.setdel);save();renderSets();render();return}
   const b=e.target.closest("[data-setcal]");if(!b)return;const [sid,cid]=b.dataset.setcal.split("|"),st=S.sets.find(x=>x.id===sid);
