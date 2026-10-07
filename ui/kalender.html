@@ -35,6 +35,7 @@ html.strong .pk-btns .pk-edit{background:var(--ce);color:#fff}
 .pk-row a{color:var(--accent);text-decoration:underline;text-underline-offset:2px;word-break:break-all;cursor:pointer}
 .pk-link{display:flex;align-items:center;gap:8px;width:100%;margin:2px 0 12px;border:1px solid var(--line);background:var(--surface-2);color:var(--accent);border-radius:12px;padding:10px 12px;font:inherit;font-weight:650;text-align:left;cursor:pointer}
 .pk-link svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.pk-lt{min-width:0}
 .pk-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .pk-link small{display:block;color:var(--muted);font-weight:500;font-size:.8em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sheet,.pk-body{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
@@ -263,6 +264,7 @@ body.is-dragging{cursor:grabbing}
 .results .rd{font-size:.75em;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:6px}
 .toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;z-index:50;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
 .toast small{display:block;font-weight:500;opacity:.8}
+.toast{pointer-events:none}.toast button{pointer-events:auto}
 
 @media (max-width:1100px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (min-width:1100px) and (orientation:landscape){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -1951,14 +1953,16 @@ let rsz=null;
 document.addEventListener("pointerdown",e=>{
   const h=e.target.closest("[data-rsz]");if(!h||e.button>0)return;
   e.stopPropagation();e.preventDefault();const bar=h.closest(".bar"),o=findEv(h.dataset.rsz);if(!o)return;
-  rsz={bar,o,y0:e.clientY,h0:bar.offsetHeight,startM:mins(o.start),endM:mins(o.end)};bar.classList.add("resizing");
+  rsz={bar,o,x0:e.clientX,moved:false,y0:e.clientY,h0:bar.offsetHeight,startM:mins(o.start),endM:mins(o.end)};bar.classList.add("resizing");
   const tl=document.createElement("div");tl.className="ghost-time";document.body.appendChild(tl);rsz.tl=tl;
   try{h.setPointerCapture(e.pointerId)}catch(_){}
 },true);
-function rszMove(x,y){const r=rsz,hp=hourPxNow(),dm=Math.round(((y-r.y0)/hp*60)/15)*15;
+function rszMove(x,y){const r=rsz;if(!r.moved&&Math.hypot(x-r.x0,y-r.y0)<7)return;r.moved=true;const hp=hourPxNow(),dm=Math.round(((y-r.y0)/hp*60)/15)*15;
   r.newEnd=Math.min(24*60-1,Math.max(r.startM+15,r.endM+dm));r.bar.style.height=Math.max(16,(r.newEnd-r.startM)/60*hp)+"px";
   r.tl.textContent="bis "+toMin(r.newEnd);r.tl.style.left=(x+14)+"px";r.tl.style.top=(y-34)+"px"}
-function rszEnd(){const r=rsz;rsz=null;r.tl.remove();r.bar.classList.remove("resizing");justDragged=true;setTimeout(()=>justDragged=false,350);
+function rszEnd(){const r=rsz;rsz=null;r.tl.remove();r.bar.classList.remove("resizing");
+  if(!r.moved){justDragged=true;setTimeout(()=>justDragged=false,350);setTimeout(()=>{try{openPeek(r.bar,r.o)}catch(err){openActions(r.bar,r.o)}},40);return}
+  justDragged=true;setTimeout(()=>justDragged=false,350);
   if(r.newEnd==null||r.newEnd===r.endM){render();return}
   const dt=detach(r.o),ev=dt.ev,before=ev.end;ev.end=toMin(r.newEnd);save();render();
   const cf2=confText(conflicts(ev));
@@ -2040,7 +2044,7 @@ function openLink(u){if(!/^(https?:|mailto:|tel:)/i.test(u))return;try{if(window
   document.addEventListener("touchend",end);document.addEventListener("touchcancel",end);
 })();
 /* Termin-Lupe: der angetippte Termin wächst zu einer grossen Karte */
-let peekId=null,peekFrom=null;
+let peekId=null,peekFrom=null,peekAt=0;
 const IC={time:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',loc:'<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',rep:'<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3M20 4v4h-4M20 12a8 8 0 0 1-14 5.3M4 20v-4h4"/></svg>',link:'<svg viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></svg>',note:'<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7"/></svg>',ro:'<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'};
 function peekTarget(r){
   const vw=innerWidth,vh=innerHeight,w=Math.min(380,vw-24),pk=$("peek");
@@ -2051,14 +2055,14 @@ function peekTarget(r){
 }
 function setBox(pk,b){pk.style.left=b.l+"px";pk.style.top=b.t+"px";pk.style.width=b.w+"px";pk.style.height=b.h+"px"}
 function openPeek(el,ev){
-  const c=calOf(ev.cal),ro=RO(ev.cal),pk=$("peek");peekId=ev.id;
+  const c=calOf(ev.cal),ro=RO(ev.cal),pk=$("peek");peekId=ev.id;peekAt=Date.now();
   pk.style.setProperty("--c",c.color);pk.style.setProperty("--ci",ink(c.color));
   $("pk-cal").textContent=c.name;$("pk-title").textContent=ev.title||"Ohne Titel";
   const row=(i,t,cls)=>`<div class="pk-row${cls?" "+cls:""}">${IC[i]}<div>${t}</div></div>`;
   let b=row("time",esc(fmtDay(parse(ev.date)))+"<br>"+(ev.allDay?"ganztägig":esc(ev.start)+" – "+esc(ev.end)+" Uhr"));
   if(ev.sid){const m=S.ev.find(x=>x.id===ev.sid);if(m)b+=row("rep",esc(repText(m)))}
   const MEET=/teams\.(microsoft|live)|zoom\.us|meet\.google|webex/i,links=[...new Set([ev.url,...findLinks(ev.loc),...findLinks(ev.notes)].filter(Boolean))].sort((x,y)=>(x===ev.url?-2:MEET.test(x)?-1:/^mailto:/.test(x)?1:0)-(y===ev.url?-2:MEET.test(y)?-1:/^mailto:/.test(y)?1:0));
-  if(links.length){const u=links[0];b=`<button type="button" class="pk-link" data-url="${esc(u)}">${IC.link}<div style="min-width:0"><span>${linkName(u)}</span><small>${esc(u.replace(/^https?:\/\//,""))}</small></div></button>`+b}
+  if(links.length){const u=links[0];b=`<button type="button" class="pk-link" data-url="${esc(u)}">${IC.link}<div class="pk-lt"><span>${linkName(u)}</span><small>${esc(u.replace(/^https?:\/\//,""))}</small></div></button>`+b}
   if(ev.loc)b+=row("loc",linkify(ev.loc));
   if(ev.notes)b+=row("note",linkify(ev.notes),"pk-notes");
   if(ro)b+=row("ro","Nur zum Lesen");
@@ -2075,7 +2079,7 @@ function closePeek(then){
   const r=peekFrom;if(r){setBox(pk,{l:r.left,t:r.top,w:Math.max(r.width,40),h:Math.max(r.height,24)});pk.style.borderRadius="8px"}
   setTimeout(()=>{pk.hidden=true;$("peek-scrim").hidden=true;peekId=null;if(then)then()},then?120:240);
 }
-$("peek-scrim").addEventListener("click",e=>{e.stopPropagation();closePeek()});
+$("peek-scrim").addEventListener("click",e=>{e.stopPropagation();if(Date.now()-peekAt<350)return;closePeek()});
 $("peek").addEventListener("click",e=>{e.stopPropagation();const a=e.target.closest("[data-url]");if(a){e.preventDefault();openLink(a.dataset.url);return}
   /* nochmals auf die Karte tippen: wieder klein */
   if(e.target.closest("button"))return;const sel=getSelection&&getSelection();if(sel&&String(sel).trim())return;closePeek()});
