@@ -13,6 +13,7 @@
 .themebtn:active{transform:scale(.94)}
 .themebtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 html{transition:background-color .25s ease}
+
 </style>
 <style>
 /* Layout: Seitenleiste (Kalender, Aufgaben) + Hauptfläche mit Kachel-Woche; auf dem Handy Leiste als Schublade */
@@ -23,16 +24,20 @@ html{transition:background-color .25s ease}
   --font-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
   --font-body:"Instrument Sans","Segoe UI",system-ui,-apple-system,sans-serif;
   --fs:14.5px; --hour:46px; --radius:12px;
+  --tint:32%; --tint-m:52%; --edge:4px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --tint:22%; --tint-m:42%; --edge:3px;
   --bg:#0f1318; --surface:#171c23; --surface-2:#1d232b; --line:#2a323d; --fg:#e8edf3; --muted:#97a3b3;
   --accent:#6c9cff; --accent-ink:#0b1220; --today:#6c9cff; --gap-line:#3a4452; --holiday:#e0a35a;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35); color-scheme:dark }}
 :root[data-theme="dim"]{
+  --tint:22%; --tint-m:42%; --edge:3px;
   --bg:#2a303a; --surface:#343b47; --surface-2:#3b4350; --line:#4b5464; --fg:#f2f5f9; --muted:#b5bfcc;
   --accent:#8fb0ff; --accent-ink:#141a24; --today:#9bb8ff; --gap-line:#5a6475; --holiday:#ebb472;
   --shadow:0 1px 2px rgba(0,0,0,.25),0 6px 18px rgba(0,0,0,.22); color-scheme:dark }
 :root[data-theme="dark"]{
+  --tint:22%; --tint-m:42%; --edge:3px;
   --bg:#0f1318; --surface:#171c23; --surface-2:#1d232b; --line:#2a323d; --fg:#e8edf3; --muted:#97a3b3;
   --accent:#6c9cff; --accent-ink:#0b1220; --today:#6c9cff; --gap-line:#3a4452; --holiday:#e0a35a;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35); color-scheme:dark }
@@ -168,7 +173,7 @@ body.is-dragging{cursor:grabbing}
 .hours div{height:var(--hour);font-size:.72em;color:var(--muted);text-align:right;padding-right:6px;transform:translateY(-.6em)}
 .col{position:relative;border-left:1px solid var(--line);background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(color-mix(in srgb,var(--line) 45%,transparent) 1px,transparent 1px);background-size:100% var(--hour),100% calc(var(--hour) / 2);cursor:cell}
 .col.tcol{background-color:color-mix(in srgb,var(--today) 5%,var(--surface))}
-.col .bar{position:absolute;padding:2px 5px;overflow:hidden;border:0;border-left:3px solid var(--c);background:color-mix(in srgb,var(--c) 22%,var(--surface));color:var(--fg);border-radius:6px;box-shadow:0 0 0 1px var(--surface)}
+.col .bar{position:absolute;padding:2px 5px;overflow:hidden;border:0;border-left:var(--edge) solid var(--c);background:color-mix(in srgb,var(--c) var(--tint),var(--surface));color:var(--fg);border-radius:6px;box-shadow:0 0 0 1px var(--surface)}
 .col .bar .n{font-size:.82em;line-height:1.2;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
 .col .bar .t{font-size:.7em;display:block;color:var(--muted);opacity:1}
 .tgrid.many .bar{padding:2px 3px}
@@ -425,7 +430,7 @@ html.land .fsbtn{display:inline-grid}
 .tfit[hidden]{display:none}
 @media (max-width:700px){.tfl{display:none}}
 /* gleiche Farbdarstellung wie in der Woche */
-.bar.tint{background:color-mix(in srgb,var(--c) 22%,var(--surface));color:var(--fg);border-left:3px solid var(--c)}
+.bar.tint{background:color-mix(in srgb,var(--c) var(--tint),var(--surface));color:var(--fg);border-left:var(--edge) solid var(--c)}
 .bar.tint .t{color:var(--muted);opacity:1}
 .bar.tint .l{color:var(--muted);opacity:1}
 /* Wiederholen + Länge ziehen */
@@ -446,7 +451,7 @@ html.land .fsbtn{display:inline-grid}
 @media (pointer:coarse){.rsz{height:16px}.rsz::after{opacity:.3}}
 .col .bar.resizing{z-index:8;box-shadow:var(--shadow);transition:none}
 /* Einheitliche Termin-Farben: hell (Standard) oder voll eingefärbt */
-.ev{background:color-mix(in srgb,var(--c) 22%,var(--surface));color:var(--fg);border-left:3px solid var(--c)}
+.ev{background:color-mix(in srgb,var(--c) var(--tint),var(--surface));color:var(--fg);border-left:var(--edge) solid var(--c)}
 .ev .t,.ev .l,.ev .tm{color:var(--muted);opacity:1}
 html.solid .ev,.ev.hl{background:var(--c);color:var(--ci);border-left-color:var(--c)}
 html.solid .ev .t,html.solid .ev .l,html.solid .ev .tm,.ev.hl .t,.ev.hl .l,.ev.hl .tm{color:inherit;opacity:.82}
@@ -501,7 +506,7 @@ body.selecting .gbody{touch-action:none;overflow:hidden}
 .month .mmore{position:absolute;bottom:2px;right:3px;background:var(--surface-2);border-radius:999px;padding:0 6px;color:var(--fg)}
 .month.mtl .c{position:relative}
 /* Monat: Farben kräftiger, damit man die Kalender gut unterscheidet */
-.month .ev{background:color-mix(in srgb,var(--c) 42%,var(--surface));border-left:3px solid var(--c);font-weight:650}
+.month .ev{background:color-mix(in srgb,var(--c) var(--tint-m),var(--surface));border-left:var(--edge) solid var(--c);font-weight:650}
 .month.mtl .mi.mt{border-left-width:3px}
 html.solid .month .ev,.month .ev.hl{background:var(--c);color:var(--ci)}
 /* Schnelleingabe, Warnung, mehrtägig */
@@ -736,6 +741,20 @@ body.placing .mic{opacity:0;pointer-events:none}
 .mscode{display:grid;gap:8px;line-height:1.4}
 .mscode b.num{font-size:1.9em;letter-spacing:.12em;font-family:var(--font-display);color:var(--fg);background:var(--surface);border:1px dashed var(--accent);border-radius:12px;padding:8px 12px;text-align:center;user-select:all}
 .mscode .btn{justify-self:start}
+
+/* Kräftige Farben: gilt für die ganze App */
+html.strong{--tint:58%;--tint-m:72%;--edge:5px}
+html.strong:is([data-theme="dim"],[data-theme="dark"]){--tint:50%;--tint-m:64%}
+@media (prefers-color-scheme: dark){html.strong:not([data-theme="light"]){--tint:50%;--tint-m:64%}}
+html.strong .ev{font-weight:650}
+html.strong .ev .t,html.strong .ev .l,html.strong .ev .tm,html.strong .col .bar .t,html.strong .bar.tint .t,html.strong .bar.tint .l{color:var(--fg);opacity:.8}
+html.strong .cchip:not([aria-pressed="false"]){background:color-mix(in srgb,var(--c) 42%,var(--surface));border-color:var(--c)}
+html.strong .cchip:not([aria-pressed="false"]) i{box-shadow:0 0 0 2px var(--surface)}
+html.strong .month .mi i,html.strong .pli .bdot{width:9px;height:9px}
+html.strong .evsheet.tinted{background:color-mix(in srgb,var(--c) 16%,var(--surface));border-top-width:6px}
+html.strong .sheet.act{background:color-mix(in srgb,var(--c,var(--surface)) 16%,var(--surface));border-top-width:6px}
+html.strong .sheet.act .act-grid button{background:color-mix(in srgb,var(--c,var(--surface-2)) 20%,var(--surface))}
+html.strong .col.tcol{background-color:color-mix(in srgb,var(--today) 10%,var(--surface))}
 </style>
 
 <div class="app" lang="de">
@@ -856,7 +875,7 @@ body.placing .mic{opacity:0;pointer-events:none}
         <label>Darstellung<select id="set-theme"><option value="">Wie System</option><option value="light">Hell</option><option value="dim">Mittel (Schiefer)</option><option value="dark">Dunkel</option></select></label>
         <label>Schriftgrösse<select id="set-font"><option value="13px">Klein</option><option value="14.5px">Mittel</option><option value="16px">Gross</option><option value="18px">Sehr gross</option></select></label>
       </div>
-      <label>Termin-Farben<select id="set-style"><option value="tint">Hell mit Farbrand (wie Woche)</option><option value="fill">Voll eingefärbt (wie Monat)</option></select></label>
+      <label>Termin-Farben<select id="set-style"><option value="tint">Normal (hell mit Farbrand)</option><option value="strong">Kräftig (stärkere Farben überall)</option><option value="fill">Voll eingefärbt</option></select></label>
       <label>Beim Drehen ins Querformat<select id="set-rot"><option value="grid">Woche zeigen</option><option value="work">Mo–Fr zeigen</option><option value="month">Monat zeigen</option><option value="tiles">Kacheln zeigen</option><option value="none">Ansicht nicht wechseln</option></select></label>
       <label class="inline"><input type="checkbox" id="set-gaps"> Freie Zeit zwischen Terminen als Abstand zeigen</label>
       <label class="inline"><input type="checkbox" id="set-kw"> Wochennummern anzeigen</label>
@@ -1371,6 +1390,7 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-caledit]")
 /* ---------- Hauptdarstellung ---------- */
 function render(anim){document.documentElement.dataset.v=view;
   document.documentElement.classList.toggle("solid",S.set.style==="fill");
+  document.documentElement.classList.toggle("strong",S.set.style==="strong"||S.set.style==="fill");
   document.documentElement.classList.toggle("land",isLand());
   document.documentElement.style.setProperty("--fs",S.set.font);
   if(S.set.theme) document.documentElement.dataset.theme=S.set.theme; else delete document.documentElement.dataset.theme;
