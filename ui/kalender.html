@@ -14,6 +14,23 @@
 .themebtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 html{transition:background-color .25s ease}
 
+/* Termin-Lupe: angetippter Termin wird gross, alles lesbar */
+.peek-scrim{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,0);transition:background .22s ease}
+.peek-scrim.on{background:rgba(0,0,0,.35)}
+.peek{position:fixed;z-index:61;background:var(--surface);color:var(--fg);border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.35);overflow:hidden;display:flex;flex-direction:column;
+  transition:left .26s cubic-bezier(.2,.8,.2,1),top .26s cubic-bezier(.2,.8,.2,1),width .26s cubic-bezier(.2,.8,.2,1),height .26s cubic-bezier(.2,.8,.2,1),border-radius .26s ease}
+.peek .pk-in{opacity:0;transition:opacity .18s ease .1s;display:flex;flex-direction:column;min-height:0;flex:1}
+.peek.on .pk-in{opacity:1}
+.pk-head{background:var(--c);color:var(--ci);padding:14px 16px 12px}
+.pk-cal{font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85}
+.pk-title{font-family:var(--font-display);font-size:1.35em;line-height:1.2;margin-top:2px;overflow-wrap:anywhere;user-select:text}
+.pk-body{padding:12px 16px 4px;overflow:auto;min-height:0;flex:1;user-select:text}
+.pk-row{display:flex;gap:10px;align-items:flex-start;margin:0 0 10px;line-height:1.35;overflow-wrap:anywhere}
+.pk-row svg{width:18px;height:18px;flex:none;margin-top:1px;stroke:var(--muted);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pk-notes{white-space:pre-wrap}
+.pk-btns{display:flex;gap:8px;padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
+.pk-btns button{flex:1;border:1px solid var(--line);background:var(--surface-2);color:inherit;border-radius:12px;padding:11px 6px;font-weight:600;font:inherit;font-weight:600}
+.pk-btns .pk-edit{background:var(--c);color:var(--ci);border-color:transparent}
 </style>
 <style>
 /* Layout: Seitenleiste (Kalender, Aufgaben) + Hauptfläche mit Kachel-Woche; auf dem Handy Leiste als Schublade */
@@ -930,6 +947,14 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
   <div class="pb-row"><small>Ziehen oder auf eine Uhrzeit tippen · Dauer</small><div class="pdur" id="pdur"></div></div>
 </div>
 
+<div class="peek-scrim" id="peek-scrim" hidden></div>
+<div class="peek" id="peek" role="dialog" aria-modal="true" aria-labelledby="pk-title" hidden>
+  <div class="pk-in">
+    <div class="pk-head"><div class="pk-cal" id="pk-cal"></div><div class="pk-title" id="pk-title"></div></div>
+    <div class="pk-body" id="pk-body"></div>
+    <div class="pk-btns"><button type="button" id="pk-more">Mehr …</button><button type="button" class="pk-edit" id="pk-edit">Bearbeiten</button></div>
+  </div>
+</div>
 <div class="scrim bottom" id="act-scrim" hidden>
   <div class="sheet act" role="dialog" aria-modal="true" aria-labelledby="act-title">
     <div class="act-head"><span class="act-dot" id="act-dot"></span><div><span class="act-cal" id="act-cal"></span><b id="act-title"></b><small id="act-sub"></small></div></div>
@@ -1963,6 +1988,46 @@ function openActions(el,ev){
     $("act-note").hidden=!ro;$("act-hl").querySelector("span").textContent=ev.hl?"Nicht mehr hervorheben":"Hervorheben";$("act-hl").classList.toggle("on",!!ev.hl);$("act-scrim").hidden=false;
   },320);
 }
+/* Termin-Lupe: der angetippte Termin wächst zu einer grossen Karte */
+let peekId=null,peekFrom=null;
+const IC={time:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',loc:'<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',rep:'<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3M20 4v4h-4M20 12a8 8 0 0 1-14 5.3M4 20v-4h4"/></svg>',note:'<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7"/></svg>',ro:'<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'};
+function peekTarget(r){
+  const vw=innerWidth,vh=innerHeight,w=Math.min(380,vw-24),pk=$("peek");
+  pk.style.width=w+"px";pk.style.height="auto";const h=Math.min(pk.scrollHeight,vh-40);
+  let l=r.left+r.width/2-w/2;l=Math.max(12,Math.min(l,vw-w-12));
+  let t=r.top+r.height/2-h/2;t=Math.max(20,Math.min(t,vh-h-20));
+  return {l,t,w,h};
+}
+function setBox(pk,b){pk.style.left=b.l+"px";pk.style.top=b.t+"px";pk.style.width=b.w+"px";pk.style.height=b.h+"px"}
+function openPeek(el,ev){
+  const c=calOf(ev.cal),ro=RO(ev.cal),pk=$("peek");peekId=ev.id;
+  pk.style.setProperty("--c",c.color);pk.style.setProperty("--ci",ink(c.color));
+  $("pk-cal").textContent=c.name;$("pk-title").textContent=ev.title||"Ohne Titel";
+  const row=(i,t,cls)=>`<div class="pk-row${cls?" "+cls:""}">${IC[i]}<div>${t}</div></div>`;
+  let b=row("time",esc(fmtDay(parse(ev.date)))+"<br>"+(ev.allDay?"ganztägig":esc(ev.start)+" – "+esc(ev.end)+" Uhr"));
+  if(ev.sid){const m=S.ev.find(x=>x.id===ev.sid);if(m)b+=row("rep",esc(repText(m)))}
+  if(ev.loc)b+=row("loc",esc(ev.loc));
+  if(ev.notes)b+=row("note",esc(ev.notes),"pk-notes");
+  if(ro)b+=row("ro","Nur zum Lesen");
+  $("pk-body").innerHTML=b;$("pk-edit").textContent=ro?"Ansehen":"Bearbeiten";
+  const r=el.getBoundingClientRect();peekFrom=r;
+  pk.classList.remove("on");pk.style.transition="none";pk.hidden=false;$("peek-scrim").hidden=false;
+  const to=peekTarget(r);setBox(pk,{l:r.left,t:r.top,w:Math.max(r.width,40),h:Math.max(r.height,24)});pk.style.borderRadius="8px";
+  void pk.offsetWidth;pk.style.transition="";
+  requestAnimationFrame(()=>{setBox(pk,to);pk.style.borderRadius="18px";pk.classList.add("on");$("peek-scrim").classList.add("on")});
+}
+function closePeek(then){
+  const pk=$("peek");if(pk.hidden){if(then)then();return}
+  pk.classList.remove("on");$("peek-scrim").classList.remove("on");
+  const r=peekFrom;if(r){setBox(pk,{l:r.left,t:r.top,w:Math.max(r.width,40),h:Math.max(r.height,24)});pk.style.borderRadius="8px"}
+  setTimeout(()=>{pk.hidden=true;$("peek-scrim").hidden=true;peekId=null;if(then)then()},then?120:240);
+}
+$("peek-scrim").addEventListener("click",e=>{e.stopPropagation();closePeek()});
+$("peek").addEventListener("click",e=>e.stopPropagation());
+$("pk-edit").onclick=()=>{const o=findEv(peekId);closePeek(()=>{if(o)openEditor(o)})};
+$("pk-more").onclick=()=>{const o=findEv(peekId),el=o&&document.querySelector(`#view [data-ev="${CSS.escape(o.id)}"]`);closePeek(()=>{if(o)openActions(el||document.body,o)})};
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("peek").hidden)closePeek()});
+addEventListener("resize",()=>{if(!$("peek").hidden)closePeek()});
 function startMode(mode){
   pending={mode,id:actId};$("act-scrim").hidden=true;document.body.classList.add("mode-on");
   $("mode-txt").textContent=mode==="move"?"Tippe auf den neuen Tag oder die neue Uhrzeit":"Tippe dorthin, wo die Kopie hin soll";$("modebar").hidden=false;
@@ -2005,7 +2070,7 @@ document.addEventListener("click",e=>{
   const ev=e.target.closest("[data-ev]");
   if(ev){e.stopPropagation();const o=findEv(ev.dataset.ev);if(!o)return;
     if(!$("search-scrim").hidden){$("search-scrim").hidden=true;openEditor(o);return}
-    openActions(ev,o);return}
+    openPeek(ev,o);return}
   const tp=e.target.closest("[data-tpill]");if(tp){$("task-btn").click();return}
   const nw=e.target.closest("[data-new]");if(nw){newAt(nw.dataset.new);return}
   const op=e.target.closest("[data-open]");if(op&&!e.target.closest("input")){cursor=parse(op.dataset.open);setView("day");return}
