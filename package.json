@@ -1,7 +1,7 @@
 {
   "name": "kachelkalender",
   "private": true,
-  "version": "0.3.5",
+  "version": "0.3.6",
   "scripts": {
     "build:web": "node scripts/build-web.mjs",
     "tauri": "tauri"
