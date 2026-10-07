@@ -404,6 +404,10 @@ body.mode-on .col:hover,body.mode-on .tile:hover,body.mode-on .month .c:hover{ou
 .calchip[aria-pressed="true"] i{background:var(--ci)}
 .ev-morebtn{justify-self:start;border:0;background:transparent;color:var(--accent);font-weight:600;padding:2px 0}
 .evform .actions{margin-top:2px}
+/* Tastatur offen: Fenster passt in den sichtbaren Bereich, Speichern bleibt unten sichtbar */
+html.kb .scrim.bottom{padding-bottom:var(--kb,0px)}
+html.kb .scrim.bottom .sheet{max-height:calc(var(--vvh,100vh) - 16px)}
+.evform .actions{position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));z-index:2;background:var(--surface);margin-left:-20px;margin-right:-20px;padding:10px 20px calc(12px + env(safe-area-inset-bottom,0px));margin-bottom:calc(-20px - env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
 /* Kacheln: ganze Woche auf einen Blick */
 .tiles.fit{height:100%;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:8px}
 @media (orientation:landscape){.tiles.fit{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}}
@@ -857,7 +861,7 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
     <form id="ev-form" class="evform">
       <div class="ev-scope" id="ev-scope" hidden role="group" aria-label="Änderung gilt für"><button type="button" data-scope="one" aria-pressed="true">Nur dieser Termin</button><button type="button" data-scope="all" aria-pressed="false">Ganze Serie</button></div>
       <div class="ev-top"><span id="ev-h">Neuer Termin</span><input type="date" id="ev-date" required aria-label="Datum"></div>
-      <div class="ev-trow"><input id="ev-title" class="ev-title" placeholder="Was? z. B. Zahnarzt" aria-label="Titel oder Schnelleingabe" required autocomplete="off"><button type="button" class="ev-mic" id="ev-mic" data-s="idle" aria-label="Termin sprechen"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="mic-ring" aria-hidden="true"></span></button></div>
+      <div class="ev-trow"><input id="ev-title" class="ev-title" enterkeyhint="done" placeholder="Was? z. B. Zahnarzt" aria-label="Titel oder Schnelleingabe" required autocomplete="off"><button type="button" class="ev-mic" id="ev-mic" data-s="idle" aria-label="Termin sprechen"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="mic-ring" aria-hidden="true"></span></button></div>
       <div class="ev-hint" id="ev-hint" hidden></div>
       <div class="ev-span" id="ev-span" hidden>Bis <input type="date" id="ev-edate" aria-label="Letzter Tag"><span id="ev-days" class="num"></span></div>
       <div class="ev-when" id="ev-times">
@@ -1503,7 +1507,7 @@ function openEditor(e,ds){
   const more=!!(e&&(e.loc||e.notes||e.allDay));$("ev-more").hidden=!more;$("ev-morebtn").hidden=more;
   const esh=$("ev-scrim").querySelector(".sheet"),ec=e?calOf(e.cal).color:"";esh.classList.toggle("tinted",!!e);esh.style.setProperty("--c",ec||"transparent");
   $("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false);
-  $("ev-scrim").hidden=false;setTimeout(()=>{$("ev-title").focus();checkWarn()},60);
+  $("ev-scrim").hidden=false;setTimeout(()=>{if(!e)$("ev-title").focus();checkWarn()},60);
 }
 /* ---------- Schnelleingabe in normaler Sprache ---------- */
 let qDef=null,qActive=false,qMan=false;
@@ -2005,6 +2009,13 @@ function openActions(el,ev){
   },320);
 }
 
+/* Tastatur erkennen (sichtbarer Bereich wird kleiner) */
+(function(){const vv=window.visualViewport;if(!vv)return;const root=document.documentElement;
+  const upd=()=>{const kb=Math.max(0,innerHeight-vv.height-vv.offsetTop);root.style.setProperty("--kb",kb+"px");root.style.setProperty("--vvh",vv.height+"px");root.classList.toggle("kb",kb>80);
+    if(kb>80){const a=document.activeElement;if(a&&a.closest&&a.closest(".sheet"))setTimeout(()=>{try{a.scrollIntoView({block:"nearest"})}catch(_){}},60)}};
+  vv.addEventListener("resize",upd);vv.addEventListener("scroll",upd);upd()})();
+/* «Fertig» auf der Tastatur im Titel: Tastatur zu, Speichern ist sichtbar */
+$("ev-title").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();e.target.blur()}});
 /* Links in Terminen erkennen und öffnen */
 const LINK_RE=/\b(?:https?:\/\/|www\.)[^\s<>"']+|\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/gi;
 const cleanLink=u=>{u=u.replace(/[.,;:!?)\]>]+$/,"");if(/^www\./i.test(u))u="https://"+u;else if(!/^https?:/i.test(u)&&u.includes("@"))u="mailto:"+u;return u};
@@ -2114,7 +2125,7 @@ document.addEventListener("click",e=>{
   const ev=e.target.closest("[data-ev]");
   if(ev){e.stopPropagation();const o=findEv(ev.dataset.ev);if(!o)return;
     if(!$("search-scrim").hidden){$("search-scrim").hidden=true;openEditor(o);return}
-    openPeek(ev,o);return}
+    try{openPeek(ev,o)}catch(err){try{$("peek").hidden=true;$("peek-scrim").hidden=true}catch(_){}openActions(ev,o);toast("Grosse Ansicht ging nicht",String(err&&err.message||err).slice(0,120),6000)}return}
   const tp=e.target.closest("[data-tpill]");if(tp){$("task-btn").click();return}
   const nw=e.target.closest("[data-new]");if(nw){newAt(nw.dataset.new);return}
   const op=e.target.closest("[data-open]");if(op&&!e.target.closest("input")){cursor=parse(op.dataset.open);setView("day");return}

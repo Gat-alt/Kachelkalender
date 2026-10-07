@@ -91,6 +91,11 @@ jobs:
           M=src-tauri/gen/android/app/src/main/AndroidManifest.xml
           grep -q RECORD_AUDIO "$M" || sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <application#' "$M"
           grep -n "permission" "$M"
+      - name: Tastatur schiebt das Fenster hoch (Speichern bleibt sichtbar)
+        run: |
+          M=src-tauri/gen/android/app/src/main/AndroidManifest.xml
+          grep -q windowSoftInputMode "$M" && sed -i 's#android:windowSoftInputMode="[^"]*"#android:windowSoftInputMode="adjustResize"#' "$M" || sed -i '0,/<activity/s#<activity#<activity android:windowSoftInputMode="adjustResize"#' "$M"
+          grep -n "windowSoftInputMode" "$M"
       - name: App-Symbol fürs Handy
         run: npx tauri icon scripts/icon.png
       - name: Handy-Symbol mit dunklem Hintergrund (wie das Logo in der App)

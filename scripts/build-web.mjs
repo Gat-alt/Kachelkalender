@@ -22,7 +22,7 @@ fs.mkdirSync(path.join(dist, "ort"), { recursive: true });
 for (const f of fs.readdirSync(ortDir)) if (/^ort-wasm-simd-threaded(\.jsep)?\.(wasm|mjs)$/.test(f)) fs.copyFileSync(path.join(ortDir, f), path.join(dist, "ort", f));
 
 const html = `<!doctype html><html lang="de"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <meta name="theme-color" content="#0f1318">
 <style>[hidden]{display:none!important}html,body{margin:0}</style>
 <script src="app.js"></script>
