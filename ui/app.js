@@ -309,9 +309,9 @@ window.KK_connect = async ({ type, name, color, f }) => {
 
 /* ---------- Abgleich ---------- */
 const win = () => ({ a: K.addDays(new Date(), -120), b: K.addDays(new Date(), 400) });
-function keepLocal(oldList, fresh) { // Hervorhebungen bleiben erhalten
-  const hl = new Set(oldList.filter(e => e.hl).map(e => e.id));
-  fresh.forEach(e => { if (hl.has(e.id)) e.hl = true; });
+function keepLocal(oldList, fresh) { // Hervorhebungen und zweite Erinnerung bleiben erhalten
+  const hl = new Set(oldList.filter(e => e.hl).map(e => e.id)), r2 = new Map(oldList.filter(e => e.remind2 != null).map(e => [e.id, e.remind2]));
+  fresh.forEach(e => { if (hl.has(e.id)) e.hl = true; if (r2.has(e.id)) e.remind2 = r2.get(e.id); });
 }
 async function pullIcs(cal, first) {
   let r;
@@ -609,27 +609,51 @@ const fired = new Set();
 function upcoming(hours) {
   const S = K.S, now = Date.now(), lim = now + hours * 36e5, out = [];
   K.visible().forEach(e => {
-    if (e.allDay) return;
-    const r = e.remind != null ? e.remind : S.set.remind; if (r == null || r < 0) return;
-    const [h, m] = (e.start || "0:0").split(":").map(Number), d = K.parse(e.date); d.setHours(h, m, 0, 0);
-    const at = d.getTime() - r * 6e4; if (at > now - 6e4 && at <= lim) out.push({ e, at, start: d });
+    // Ganztägige Termine: Erinnerung bezieht sich auf 08:00 Uhr am Tag
+    const [h, m] = (e.allDay ? "08:00" : (e.start || "0:0")).split(":").map(Number), d = K.parse(e.date); d.setHours(h, m, 0, 0);
+    const r1 = e.remind != null ? e.remind : S.set.remind;
+    [...new Set([r1, e.remind2])].forEach(r => {
+      if (r == null || r < 0 || isNaN(r)) return;
+      if (e.allDay && r < 60) r = 0; // ganztägig: kurze Vorlaufzeiten = um 08:00
+      const at = d.getTime() - r * 6e4; if (at > now - 6e4 && at <= lim) out.push({ e, at, start: d, r });
+    });
   });
   return out.sort((a, b) => a.at - b.at);
 }
-const body = x => `${x.e.start}–${x.e.end}${x.e.loc ? " · " + x.e.loc : ""}`;
+const ahead = r => r >= 1440 ? (r === 1440 ? "Morgen" : `In ${Math.round(r / 1440)} Tagen`) : r >= 60 ? `In ${Math.round(r / 60)} Std.` : r > 0 ? `In ${r} Min.` : "Jetzt";
+const body = x => `${ahead(x.r)} · ${x.e.allDay ? "ganztägig" : x.e.start + "–" + x.e.end}${x.e.loc ? " · " + x.e.loc : ""}`;
 let remT = 0;
 async function scheduleReminders() {
-  if (!IS_ANDROID || !T.notification) return;
+  if (!IS_ANDROID || !T.notification) { writeWidget(); return; }
   clearTimeout(remT);
   remT = setTimeout(async () => {
     try {
       await T.notification.cancelAll();
-      upcoming(24 * 7).slice(0, 60).forEach((x, i) => {
+      upcoming(24 * 14).slice(0, 60).forEach((x, i) => {
         if (x.at <= Date.now()) return;
         T.notification.sendNotification({ id: 1000 + i, title: x.e.title, body: body(x), schedule: { at: { date: new Date(x.at), repeating: false, allowWhileIdle: true }, interval: undefined, every: undefined } });
       });
     } catch (e) { /* Erinnerungen sind optional */ }
+    writeWidget();
   }, 800);
+}
+/* Startbildschirm-Widget: die nächsten Termine (14 Tage) in eine kleine Datei der App */
+async function writeWidget() {
+  if (!IS_ANDROID || !T.core || !T.core.invoke) return;
+  try {
+    const now = Date.now(), today = K.ymd(new Date()), tom = K.ymd(K.addDays(new Date(), 1)), WD = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"], MO = ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sep.", "Okt.", "Nov.", "Dez."];
+    const list = [];
+    for (let i = 0; i < 14; i++) {
+      const d = K.addDays(new Date(), i), ds = K.ymd(d);
+      K.visible().filter(e => e.date === ds || (e.edate && e.date < ds && e.edate >= ds)).forEach(e => {
+        const end = K.parse(e.edate && e.edate > e.date ? e.edate : e.date); if (e.allDay) end.setHours(23, 59); else { const [h, m] = e.end.split(":").map(Number); end.setHours(h, m); }
+        if (end.getTime() < now) return;
+        list.push({ day: ds === today ? "Heute" : ds === tom ? "Morgen" : `${WD[d.getDay()]}, ${d.getDate()}. ${MO[d.getMonth()]}`, ds, time: e.allDay ? "ganztägig" : (e.date < ds ? "00:00" : e.start), title: e.title, color: K.calOf(e.cal).color, end: end.getTime() });
+      });
+    }
+    list.sort((a, b) => a.ds.localeCompare(b.ds) || (a.time === "ganztägig" ? -1 : b.time === "ganztägig" ? 1 : a.time.localeCompare(b.time)));
+    await T.core.invoke("widget_data", { json: JSON.stringify(list.slice(0, 40)) });
+  } catch (e) { /* Widget ist optional */ }
 }
 function desktopTick() {
   if (IS_ANDROID || !T.notification) return;

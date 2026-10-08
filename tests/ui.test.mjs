@@ -238,7 +238,39 @@ console.log("Leiste unten");
   await pg.context().close();
 }
 
-// 7) Querformat und Farben
+// 7) Sicherung, .ics, zweite Erinnerung
+console.log("Sicherung und Erinnerungen");
+{
+  const pg = await fresh("grid");
+  const r = await pg.evaluate(() => {
+    const B = window.KK_backup, S = window._K.S, n = S.ev.length, nt = S.tasks.length;
+    const json = B.backupJSON();
+    S.ev.splice(0, 3); S.tasks = [];
+    B.importText(json, false);
+    const back = [window._K.S.ev.length === n, window._K.S.tasks.length === nt];
+    const ics = B.toICS([{ id: "a1", title: "Party; mit, Sonderzeichen", date: "2026-10-09", start: "22:00", end: "02:00", edate: "2026-10-10", loc: "Zürich", notes: "Zeile 1\nZeile 2", allDay: false, remind: 30 },
+                         { id: "a2", title: "Ferien", date: "2026-10-12", edate: "2026-10-16", allDay: true, start: "", end: "" },
+                         { id: "a3", title: "Training", date: "2026-10-05", start: "18:30", end: "20:00", allDay: false, rep: { f: "w", until: null, ex: [] } }]);
+    const l = B.fromICS(ics);
+    return { back, n: l.length, p: l[0], f: l[1], t: l[2] };
+  });
+  check("Sicherung speichern und laden stellt alles wieder her", r.back[0] && r.back[1], JSON.stringify(r.back));
+  check(".ics: Export und Import", r.n === 3);
+  check(".ics: Sonderzeichen, Zeilen, über Mitternacht", r.p.title === "Party; mit, Sonderzeichen" && r.p.notes === "Zeile 1\nZeile 2" && r.p.edate === "2026-10-10" && r.p.end === "02:00", JSON.stringify(r.p));
+  check(".ics: mehrtägig ganztägig", r.f.allDay && r.f.edate === "2026-10-16", JSON.stringify(r.f));
+  check(".ics: wöchentliche Serie", r.t.rep && r.t.rep.f === "w", JSON.stringify(r.t));
+  // zweite Erinnerung im Editor
+  await pg.click("#fab"); await pg.waitForTimeout(300);
+  await pg.fill("#ev-title", "Prüfung");
+  await pg.evaluate(() => { document.getElementById("ev-morebtn").click(); document.getElementById("ev-remind").value = "60"; document.getElementById("ev-remind2").value = "1440"; document.getElementById("ev-form").requestSubmit(); });
+  await pg.waitForTimeout(300);
+  const pr = await pg.evaluate(() => window._K.S.ev.find(e => e.title === "Prüfung"));
+  check("Zwei Erinnerungen werden gespeichert", pr && pr.remind === 60 && pr.remind2 === 1440, JSON.stringify(pr));
+  check("keine JS-Fehler", !pg.errors.length, pg.errors.join(" | "));
+  await pg.context().close();
+}
+
+// 8) Querformat und Farben
 console.log("Querformat, Hell/Dunkel");
 {
   const pg = await fresh("tiles");

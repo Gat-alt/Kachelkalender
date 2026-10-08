@@ -112,6 +112,8 @@ jobs:
           M=src-tauri/gen/android/app/src/main/AndroidManifest.xml
           grep -q windowSoftInputMode "$M" && sed -i 's#android:windowSoftInputMode="[^"]*"#android:windowSoftInputMode="adjustResize"#' "$M" || sed -i '0,/<activity/s#<activity#<activity android:windowSoftInputMode="adjustResize"#' "$M"
           grep -n "windowSoftInputMode" "$M"
+      - name: Startbildschirm-Widget
+        run: node scripts/android-widget.mjs
       - name: App-Symbol fürs Handy
         run: npx tauri icon scripts/icon.png
       - name: Handy-Symbol mit dunklem Hintergrund (wie das Logo in der App)

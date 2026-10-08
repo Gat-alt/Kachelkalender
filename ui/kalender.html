@@ -766,6 +766,7 @@ body.placing .mic{opacity:0;pointer-events:none}
 .tmins{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
 .tsum{flex-wrap:wrap}
 .tbtn-end b{font-size:1.25em}
+.bk-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.bk-row .btn{flex:1 1 140px}
 .tp-h{font-size:.78em;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .tp-exact{display:flex;align-items:center;gap:8px;font-size:.85em;color:var(--muted);font-weight:600}
 .tp-exact input{font:inherit;font-size:1.1em;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:6px 10px}
@@ -888,7 +889,10 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
         <label>Erinnerung<select id="ev-remind">
           <option value="-1">Keine</option><option value="0">Zum Beginn</option><option value="5">5 Min. vorher</option>
           <option value="10">10 Min. vorher</option><option value="15">15 Min. vorher</option><option value="30">30 Min. vorher</option>
-          <option value="60">1 Std. vorher</option><option value="1440">1 Tag vorher</option></select></label>
+          <option value="60">1 Std. vorher</option><option value="120">2 Std. vorher</option><option value="1440">1 Tag vorher</option><option value="2880">2 Tage vorher</option><option value="10080">1 Woche vorher</option></select></label>
+        <label>Zweite Erinnerung<select id="ev-remind2">
+          <option value="-1">Keine</option><option value="0">Zum Beginn</option><option value="15">15 Min. vorher</option><option value="30">30 Min. vorher</option>
+          <option value="60">1 Std. vorher</option><option value="120">2 Std. vorher</option><option value="1440">1 Tag vorher</option><option value="2880">2 Tage vorher</option><option value="10080">1 Woche vorher</option></select></label>
         <label>Ort<input id="ev-loc"></label>
         <label>Notizen<textarea id="ev-notes" rows="2"></textarea></label>
         <div class="movebtns" id="ev-move" aria-label="Verschieben">
@@ -934,6 +938,11 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
       <label class="inline"><input type="checkbox" id="set-cbar"> Kalender-Leiste unter der Kopfzeile anzeigen</label></div>
     <div class="setgroup"><h3>Farben</h3><div id="colors" class="form"></div><button type="button" class="btn" id="set-addcal">+ Kalender hinzufügen</button></div>
     <div class="setgroup"><h3>Konten</h3><div id="accounts" class="form"></div></div>
+    <div class="setgroup"><h3>Sicherung</h3><p class="set-help">Speichert alle Termine, Aufgaben und Einstellungen in eine Datei (ohne Passwörter). Damit kannst du alles wiederherstellen oder in eine andere Kalender-App übernehmen.</p>
+      <div class="bk-row"><button type="button" class="btn" id="bk-save">Sicherung speichern</button><button type="button" class="btn" id="bk-load">Sicherung laden</button></div>
+      <div class="bk-row"><button type="button" class="btn" id="bk-ics">Termine als .ics exportieren</button><button type="button" class="btn" id="bk-icsin">.ics importieren</button></div>
+      <p class="set-help" id="bk-last"></p>
+      <input type="file" id="bk-file" accept=".json,.ics,application/json,text/calendar" hidden></div>
     <div class="actions"><button class="btn primary" id="set-close">Fertig</button></div>
   </div>
 </div>
@@ -1507,7 +1516,7 @@ function openEditor(e,ds){
   $("ev-end").value=e&&!e.allDay?e.end:"10:00";
   $("ev-loc").value=e?e.loc:"";
   $("ev-notes").value=e?e.notes||"":"";
-  $("ev-remind").value=String(e?e.remind:S.set.remind);
+  $("ev-remind").value=String(e?e.remind:S.set.remind);if(!$("ev-remind").value)$("ev-remind").value=String(S.set.remind);$("ev-remind2").value=String(e&&e.remind2!=null?e.remind2:-1);
   $("ev-edate").value=e&&e.edate?e.edate:"";qDef=null;qMan=false;window.KK_dur=0;qActive=!e;$("ev-hint").hidden=true;
   syncAllday();
   const del=$("ev-del");del.hidden=!e;del.classList.remove("armed");del.textContent=ser?"Diesen löschen":"Löschen";
@@ -1516,7 +1525,7 @@ function openEditor(e,ds){
   if(ro) $("ev-h").textContent="Stundenplan-Termin";
   const opts=S.cals.filter(c=>!RO(c.id)||ro);
   $("ev-cals").innerHTML=opts.map(c=>`<button type="button" class="calchip" data-pickcal="${c.id}" style="--c:${c.color};--ci:${ink(c.color)}" aria-pressed="${c.id===$("ev-cal").value}"><i></i>${esc(c.name)}</button>`).join("");
-  const more=!!(e&&(e.loc||e.notes||e.allDay));$("ev-more").hidden=!more;$("ev-morebtn").hidden=more;
+  const more=!!(e&&(e.loc||e.notes||e.allDay||e.remind2!=null));$("ev-more").hidden=!more;$("ev-morebtn").hidden=more;
   const esh=$("ev-scrim").querySelector(".sheet"),ec=e?calOf(e.cal).color:"";esh.classList.toggle("tinted",!!e);esh.style.setProperty("--c",ec||"transparent");
   $("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false);$("ev-tbtn2").setAttribute("aria-expanded",false);
   $("ev-scrim").hidden=false;setTimeout(()=>{if(!e)$("ev-title").focus();checkWarn()},60);
@@ -1676,7 +1685,7 @@ $("ev-form").addEventListener("submit",ev=>{
   if(!allDay&&mins(e)===mins(s)){toast("Das Ende muss nach dem Beginn liegen");return}
   const qp=qActive?parseQuick($("ev-title").value):null;
   const ed=allDay?($("ev-edate").value>$("ev-date").value?$("ev-edate").value:null):(mins(e)<mins(s)?ymd(addDays(parse($("ev-date").value),1)):null);
-  const data={edate:ed,title:(qp&&qp.found.length?qp.title:$("ev-title").value.trim())||"Ohne Titel",cal:$("ev-cal").value,date:$("ev-date").value,allDay,start:allDay?"":s,end:allDay?"":e,loc:$("ev-loc").value.trim(),notes:$("ev-notes").value.trim(),remind:+$("ev-remind").value};
+  const data={edate:ed,title:(qp&&qp.found.length?qp.title:$("ev-title").value.trim())||"Ohne Titel",cal:$("ev-cal").value,date:$("ev-date").value,allDay,start:allDay?"":s,end:allDay?"":e,loc:$("ev-loc").value.trim(),notes:$("ev-notes").value.trim(),remind:+$("ev-remind").value,remind2:+$("ev-remind2").value>=0?+$("ev-remind2").value:undefined};
   const rf=$("ev-rep").value,until=$("ev-until").value||null;
   if(editing){const o=findEv(editing);
     if(o.sid&&scope==="all"){const m=S.ev.find(x=>x.id===o.sid);const shift=Math.round((parse(data.date)-parse(o.date))/864e5);
@@ -2048,6 +2057,66 @@ function openActions(el,ev){
   vv.addEventListener("resize",upd);vv.addEventListener("scroll",upd);upd()})();
 /* «Fertig» auf der Tastatur im Titel: Tastatur zu, Speichern ist sichtbar */
 $("ev-title").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();e.target.blur()}});
+/* ---------- Sicherung: speichern, laden, .ics ---------- */
+const stamp=()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
+async function saveFile(name,text,mime){
+  const T=window.__TAURI__;
+  if(T&&T.dialog&&T.fs){try{const p=await T.dialog.save({defaultPath:name});if(!p)return false;await T.fs.writeTextFile(p,text);return true}catch(e){toast("Speichern ging nicht",String(e&&e.message||e).slice(0,120),6000);return false}}
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:mime}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);return true}
+function backupJSON(){const c=JSON.parse(JSON.stringify(S));(c.cals||[]).forEach(k=>{delete k.acct;delete k.known});return JSON.stringify({kachelkalender:1,saved:new Date().toISOString(),data:c},null,1)}
+const icsEsc=t=>String(t||"").replace(/\\/g,"\\\\").replace(/\n/g,"\\n").replace(/([,;])/g,"\\$1");
+const icsD=ds=>ds.replace(/-/g,""),icsDT=(ds,t)=>icsD(ds)+"T"+t.replace(":","")+"00";
+function toICS(list){
+  const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Kachelkalender//DE","CALSCALE:GREGORIAN"],now=new Date().toISOString().replace(/[-:]/g,"").slice(0,15)+"Z";
+  const RR={d:"FREQ=DAILY",wd:"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",w:"FREQ=WEEKLY",w2:"FREQ=WEEKLY;INTERVAL=2",m:"FREQ=MONTHLY",y:"FREQ=YEARLY"};
+  list.forEach(e=>{L.push("BEGIN:VEVENT","UID:"+(e.uid||e.id+"@kachelkalender"),"DTSTAMP:"+now);
+    if(e.allDay)L.push("DTSTART;VALUE=DATE:"+icsD(e.date),"DTEND;VALUE=DATE:"+icsD(ymd(addDays(parse(e.edate||e.date),1))));
+    else L.push("DTSTART;TZID=Europe/Zurich:"+icsDT(e.date,e.start),"DTEND;TZID=Europe/Zurich:"+icsDT(e.edate&&e.edate>e.date?e.edate:e.date,e.end));
+    L.push("SUMMARY:"+icsEsc(e.title));if(e.loc)L.push("LOCATION:"+icsEsc(e.loc));if(e.notes)L.push("DESCRIPTION:"+icsEsc(e.notes));if(e.url)L.push("URL:"+e.url);
+    if(e.rep&&RR[e.rep.f]){L.push("RRULE:"+RR[e.rep.f]+(e.rep.until?";UNTIL="+icsD(e.rep.until)+"T235959":""));(e.rep.ex||[]).forEach(x=>L.push(e.allDay?"EXDATE;VALUE=DATE:"+icsD(x):"EXDATE;TZID=Europe/Zurich:"+icsDT(x,e.start)))}
+    if(e.remind!=null&&e.remind>=0)L.push("BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEsc(e.title),"TRIGGER:-PT"+e.remind+"M","END:VALARM");
+    L.push("END:VEVENT")});
+  L.push("END:VCALENDAR");return L.map(l=>{let o="";while(l.length>74){o+=l.slice(0,74)+"\r\n ";l=l.slice(74)}return o+l}).join("\r\n")+"\r\n"}
+/* Einfaches Einlesen von .ics (Termine aus anderen Apps übernehmen) */
+function fromICS(text){
+  const lines=text.replace(/\r?\n[ \t]/g,"").split(/\r?\n/),out=[];let cur=null;
+  const un=t=>String(t||"").replace(/\\n/gi,"\n").replace(/\\([,;\\])/g,"$1");
+  const dt=v=>{const m=/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?/.exec(v||"");if(!m)return null;
+    if(!m[4])return {d:`${m[1]}-${m[2]}-${m[3]}`,t:null};
+    if(m[7]){const x=new Date(Date.UTC(+m[1],m[2]-1,+m[3],+m[4],+m[5]));return {d:ymd(x),t:toMin(x.getHours()*60+x.getMinutes())}}
+    return {d:`${m[1]}-${m[2]}-${m[3]}`,t:`${m[4]}:${m[5]}`}};
+  let inAlarm=false;
+  for(const l of lines){
+    if(l==="BEGIN:VEVENT"){cur={};continue}if(l==="BEGIN:VALARM"){inAlarm=true;continue}if(l==="END:VALARM"){inAlarm=false;continue}
+    if(l==="END:VEVENT"&&cur){const s=dt(cur.DTSTART),e=dt(cur.DTEND);if(s){const ev={id:uid(),title:un(cur.SUMMARY)||"Ohne Titel",date:s.d,loc:un(cur.LOCATION),notes:un(cur.DESCRIPTION)};
+        if(cur.URL)ev.url=cur.URL;
+        if(!s.t){ev.allDay=true;ev.start="";ev.end="";if(e&&e.d>s.d){const ed=ymd(addDays(parse(e.d),-1));if(ed>s.d)ev.edate=ed}}
+        else{ev.allDay=false;ev.start=s.t;ev.end=e&&e.t?e.t:toMin(Math.min(mins(s.t)+60,24*60-1));if(e&&e.d>s.d){if(e.t==="00:00"&&ymd(addDays(parse(s.d),1))===e.d)ev.end="23:59";else ev.edate=e.d}
+          if(!ev.edate&&mins(ev.end)<=mins(ev.start))ev.end=toMin(Math.min(mins(ev.start)+15,24*60-1))}
+        const r=/FREQ=(\w+)(?:.*INTERVAL=(\d+))?/.exec(cur.RRULE||"");if(r){const f={DAILY:"d",WEEKLY:+r[2]===2?"w2":"w",MONTHLY:"m",YEARLY:"y"}[r[1]];const u=/UNTIL=(\d{8})/.exec(cur.RRULE);if(f)ev.rep={f,until:u?`${u[1].slice(0,4)}-${u[1].slice(4,6)}-${u[1].slice(6)}`:null,ex:[]}}
+        out.push(ev)}cur=null;continue}
+    if(!cur||inAlarm)continue;const i=l.indexOf(":");if(i<0)continue;const k=l.slice(0,i).split(";")[0].toUpperCase();if(!(k in cur))cur[k]=l.slice(i+1)}
+  return out}
+function bkInfo(){try{const t=localStorage.getItem(KEY+"-bk");$("bk-last").textContent=t?"Letzte Sicherung: "+new Date(t).toLocaleDateString("de-CH")+" "+new Date(t).toLocaleTimeString("de-CH",{hour:"2-digit",minute:"2-digit"}):"Noch keine Sicherung gespeichert."}catch(e){}}
+$("bk-save").onclick=async()=>{if(await saveFile(`kachelkalender-sicherung-${stamp()}.json`,backupJSON(),"application/json")){try{localStorage.setItem(KEY+"-bk",new Date().toISOString())}catch(e){}bkInfo();toast("Sicherung gespeichert",`${S.ev.length} Termine, ${(S.tasks||[]).length} Aufgaben`)}};
+$("bk-ics").onclick=async()=>{const l=S.ev.filter(e=>!e.lock);if(await saveFile(`kachelkalender-${stamp()}.ics`,toICS(l),"text/calendar"))toast("Exportiert",l.length+" Termine als .ics")};
+let bkMode="json";
+$("bk-load").onclick=()=>{bkMode="json";$("bk-file").value="";$("bk-file").click()};
+$("bk-icsin").onclick=()=>{bkMode="ics";$("bk-file").value="";$("bk-file").click()};
+$("bk-file").addEventListener("change",async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const text=await f.text();importText(text,/\.ics$/i.test(f.name)||bkMode==="ics"&&!/^\s*\{/.test(text))});
+function importText(text,isIcs){
+  if(isIcs||/BEGIN:VCALENDAR/.test(text)){const l=fromICS(text);if(!l.length){toast("Keine Termine gefunden","Ist das eine .ics-Datei?",5000);return}
+    const cal=S.cals.find(c=>c.id==="privat"&&!RO(c.id))?"privat":firstRW();l.forEach(x=>x.cal=cal);
+    const ids=new Set(l.map(x=>x.id));S.ev.push(...l);save();render();
+    toast(l.length+" Termine importiert","in "+calOf(cal).name,6000,{label:"Rückgängig",fn:()=>{S.ev=S.ev.filter(x=>!ids.has(x.id));save();render()}});return l.length}
+  let j;try{j=JSON.parse(text)}catch(e){toast("Datei nicht lesbar","Bitte eine Kachelkalender-Sicherung (.json) wählen",5000);return}
+  if(!j||!j.kachelkalender||!j.data||!Array.isArray(j.data.ev)){toast("Keine Kachelkalender-Sicherung",null,5000);return}
+  const before=JSON.stringify(S),keep=new Map(S.cals.filter(c=>c.acct).map(c=>[c.id,c]));
+  const d=j.data;d.cals=(d.cals||[]).map(c=>keep.has(c.id)?{...c,acct:keep.get(c.id).acct}:c);
+  Object.keys(S).forEach(k=>delete S[k]);Object.assign(S,d);save();expCache=null;render();
+  toast("Sicherung geladen",`${S.ev.length} Termine vom ${new Date(j.saved).toLocaleDateString("de-CH")}`,8000,{label:"Rückgängig",fn:()=>{const o=JSON.parse(before);Object.keys(S).forEach(k=>delete S[k]);Object.assign(S,o);save();expCache=null;render()}});return S.ev.length}
+window.KK_backup={backupJSON,toICS,fromICS,importText};
+bkInfo();
 /* Links in Terminen erkennen und öffnen */
 const LINK_RE=/\b(?:https?:\/\/|www\.)[^\s<>"']+|\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/gi;
 const cleanLink=u=>{u=u.replace(/[.,;:!?)\]>]+$/,"");if(/^www\./i.test(u))u="https://"+u;else if(!/^https?:/i.test(u)&&u.includes("@"))u="mailto:"+u;return u};

@@ -1,11 +1,11 @@
 {
   "name": "kachelkalender",
   "private": true,
-  "version": "0.3.12",
+  "version": "0.4.0",
   "scripts": {
     "build:web": "node scripts/build-web.mjs",
     "tauri": "tauri",
-    "test": "node tests/ui.test.mjs"
+    "test": "node tests/ui.test.mjs && npm run build:web && node tests/app.test.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.1",
