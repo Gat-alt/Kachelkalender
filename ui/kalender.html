@@ -763,7 +763,12 @@ body.placing .mic{opacity:0;pointer-events:none}
 .tpick{background:var(--surface-2);border-radius:12px;padding:8px;display:grid;gap:8px;animation:pop .15s ease both}
 .tpick[hidden]{display:none}
 .tgrid-h{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
-.tmins{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.tmins{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
+.tsum{flex-wrap:wrap}
+.tbtn-end b{font-size:1.25em}
+.tp-h{font-size:.78em;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.tp-exact{display:flex;align-items:center;gap:8px;font-size:.85em;color:var(--muted);font-weight:600}
+.tp-exact input{font:inherit;font-size:1.1em;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:6px 10px}
 .tpick button,.durs button{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:9px;padding:8px 0;font-weight:600;font-variant-numeric:tabular-nums}
 .tpick button[aria-pressed="true"],.durs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
 .durs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
@@ -867,8 +872,8 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
       <div class="ev-hint" id="ev-hint" hidden></div>
       <div class="ev-span" id="ev-span" hidden>Bis <input type="date" id="ev-edate" aria-label="Letzter Tag"><span id="ev-days" class="num"></span></div>
       <div class="ev-when" id="ev-times">
-        <div class="tsum"><button type="button" class="tbtn" id="ev-tbtn" aria-expanded="false"><span class="tl">Beginn</span><b id="ev-tstart" class="num">09:00</b></button><span class="tto">bis <b id="ev-tend" class="num">10:00</b></span></div>
-        <div class="tpick" id="ev-tpick" hidden><div class="tgrid-h" id="ev-hrs"></div><div class="tmins" id="ev-mins"></div></div>
+        <div class="tsum"><button type="button" class="tbtn" id="ev-tbtn" aria-expanded="false"><span class="tl">Beginn</span><b id="ev-tstart" class="num">09:00</b></button><button type="button" class="tbtn tbtn-end" id="ev-tbtn2" aria-expanded="false"><span class="tl">Ende</span><b id="ev-tend" class="num">10:00</b></button></div>
+        <div class="tpick" id="ev-tpick" hidden><div class="tp-h" id="ev-tpwhat">Beginn wählen</div><div class="tgrid-h" id="ev-hrs"></div><div class="tmins" id="ev-mins"></div><label class="tp-exact">Genau: <input type="time" id="ev-texact" step="60"></label></div>
         <div class="durs" id="ev-durs" role="group" aria-label="Dauer"></div>
         <input type="time" id="ev-start" aria-label="Beginn" hidden><input type="time" id="ev-end" aria-label="Ende" hidden>
       </div>
@@ -1513,7 +1518,7 @@ function openEditor(e,ds){
   $("ev-cals").innerHTML=opts.map(c=>`<button type="button" class="calchip" data-pickcal="${c.id}" style="--c:${c.color};--ci:${ink(c.color)}" aria-pressed="${c.id===$("ev-cal").value}"><i></i>${esc(c.name)}</button>`).join("");
   const more=!!(e&&(e.loc||e.notes||e.allDay));$("ev-more").hidden=!more;$("ev-morebtn").hidden=more;
   const esh=$("ev-scrim").querySelector(".sheet"),ec=e?calOf(e.cal).color:"";esh.classList.toggle("tinted",!!e);esh.style.setProperty("--c",ec||"transparent");
-  $("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false);
+  $("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false);$("ev-tbtn2").setAttribute("aria-expanded",false);
   $("ev-scrim").hidden=false;setTimeout(()=>{if(!e)$("ev-title").focus();checkWarn()},60);
 }
 /* ---------- Schnelleingabe in normaler Sprache ---------- */
@@ -1615,21 +1620,32 @@ $("ev-allday").addEventListener("change",syncAllday);
 {
   const DUR=[[15,"15 Min."],[30,"30 Min."],[45,"45 Min."],[60,"1 Std."],[90,"1½ Std."],[120,"2 Std."],[180,"3 Std."],[240,"4 Std."]];
   const sI=$("ev-start"),eI=$("ev-end"),vd=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value");
-  let busy=false;
+  let busy=false,pickEnd=false;
   const sync=()=>{if(busy)return;const a=mins(sI.value||"09:00"),b=mins(eI.value||"10:00"),d=b>a?b-a:b+1440-a;
     $("ev-tstart").textContent=sI.value||"–";$("ev-tend").textContent=(eI.value||"–")+(b<a?" (+1 Tag)":"");
     $("ev-durs").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.d===d));
-    $("ev-hrs").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.h===Math.floor(a/60)));
-    $("ev-mins").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.m===a%60))};
+    const v=pickEnd?b:a;$("ev-texact").value=String(Math.floor(v/60)%24).padStart(2,"0")+":"+String(v%60).padStart(2,"0");
+    $("ev-hrs").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.h===Math.floor(v/60)));
+    $("ev-mins").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.m===v%60))};
   [sI,eI].forEach(el=>Object.defineProperty(el,"value",{configurable:true,get(){return vd.get.call(this)},set(v){vd.set.call(this,v);sync()}}));
   $("ev-durs").innerHTML=DUR.map(([d,l])=>`<button type="button" data-d="${d}">${l}</button>`).join("");
-  let h="";for(let x=6;x<=23;x++)h+=`<button type="button" data-h="${x}">${x}</button>`;$("ev-hrs").innerHTML=h;
-  $("ev-mins").innerHTML=[0,15,30,45].map(m=>`<button type="button" data-m="${m}">:${pad(m)}</button>`).join("");
+  let h="";for(let x=0;x<=23;x++)h+=`<button type="button" data-h="${x}">${x}</button>`;$("ev-hrs").innerHTML=h;
+  $("ev-mins").innerHTML=[0,5,10,15,20,25,30,35,40,45,50,55].map(m=>`<button type="button" data-m="${m}">:${pad(m)}</button>`).join("");
+
   const curDur=()=>{const a=mins(sI.value||"09:00"),b=mins(eI.value||"10:00");return b>a?b-a:b+1440-a};
   const setStart=a=>{const d=window.KK_dur||Math.max(15,curDur());qTouch();busy=true;sI.value=toMin(a);eI.value=toMin((a+d)%1440);busy=false;sync();syncAllday()};
-  $("ev-tbtn").onclick=()=>{const o=$("ev-tpick").hidden;$("ev-tpick").hidden=!o;$("ev-tbtn").setAttribute("aria-expanded",o)};
-  $("ev-hrs").onclick=e=>{const b=e.target.closest("[data-h]");if(!b)return;setStart(+b.dataset.h*60+mins(sI.value||"09:00")%60)};
-  $("ev-mins").onclick=e=>{const b=e.target.closest("[data-m]");if(!b)return;setStart(Math.floor(mins(sI.value||"09:00")/60)*60+ +b.dataset.m);$("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false)};
+  /* Ende direkt wählen: Dauer ergibt sich daraus */
+  const setEnd=b=>{qTouch();busy=true;eI.value=toMin(b);busy=false;window.KK_dur=curDur();sync();syncAllday()};
+  const cur=()=>mins((pickEnd?eI:sI).value||(pickEnd?"10:00":"09:00"));
+  const setCur=m=>pickEnd?setEnd(m):setStart(m);
+  const openPick=end=>{const same=!$("ev-tpick").hidden&&pickEnd===end;pickEnd=end;$("ev-tpick").hidden=same;
+    $("ev-tbtn").setAttribute("aria-expanded",!same&&!end);$("ev-tbtn2").setAttribute("aria-expanded",!same&&end);$("ev-tpwhat").textContent=end?"Ende wählen":"Beginn wählen";sync()};
+  const closePick=()=>{$("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false);$("ev-tbtn2").setAttribute("aria-expanded",false)};
+  $("ev-tbtn").onclick=()=>openPick(false);
+  $("ev-tbtn2").onclick=()=>openPick(true);
+  $("ev-hrs").onclick=e=>{const b=e.target.closest("[data-h]");if(!b)return;setCur(+b.dataset.h*60+cur()%60)};
+  $("ev-mins").onclick=e=>{const b=e.target.closest("[data-m]");if(!b)return;setCur(Math.floor(cur()/60)*60+ +b.dataset.m);closePick()};
+  $("ev-texact").addEventListener("change",e=>{if(!e.target.value)return;setCur(mins(e.target.value))});
   $("ev-durs").onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;window.KK_dur=+b.dataset.d;qTouch();eI.value=toMin((mins(sI.value||"09:00")+ +b.dataset.d)%1440);syncAllday()};
   sync();
 }

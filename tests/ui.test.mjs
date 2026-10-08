@@ -147,6 +147,18 @@ console.log("Termine anlegen und ändern");
   await pg.click('#ev-hrs [data-h="14"]');
   t = await pg.evaluate(() => [document.getElementById("ev-start").value, document.getElementById("ev-end").value]);
   check("Dauer bleibt beim Umstellen der Uhrzeit", t[0] === "14:00" && t[1] === "18:00", t.join("–"));
+  // Ende frei wählen (z. B. 13:30–14:50)
+  await pg.evaluate(() => { document.getElementById("ev-tpick").hidden = true; });
+  await pg.click("#ev-tbtn"); await pg.click('#ev-hrs [data-h="13"]'); await pg.click('#ev-mins [data-m="30"]');
+  await pg.click("#ev-tbtn2"); await pg.click('#ev-hrs [data-h="14"]'); await pg.click('#ev-mins [data-m="50"]');
+  t = await pg.evaluate(() => [document.getElementById("ev-start").value, document.getElementById("ev-end").value]);
+  check("Ende frei wählbar (13:30–14:50)", t[0] === "13:30" && t[1] === "14:50", t.join("–"));
+  await pg.click("#ev-tbtn"); await pg.click('#ev-hrs [data-h="15"]'); // Minuten bleiben :30
+  t = await pg.evaluate(() => [document.getElementById("ev-start").value, document.getElementById("ev-end").value]);
+  check("…Dauer bleibt beim Verschieben des Beginns", t[0] === "15:30" && t[1] === "16:50", t.join("–"));
+  await pg.fill("#ev-texact", "08:07"); await pg.dispatchEvent("#ev-texact", "change");
+  t = await pg.evaluate(() => document.getElementById("ev-start").value);
+  check("Genaue Uhrzeit eintippen", t === "08:07", t);
   await closeAll(pg);
 
   // Über Mitternacht
