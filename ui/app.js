@@ -561,7 +561,7 @@ async function pushMs() {
 
 function forget() { // Zugangsdaten entfernter Kalender löschen
   const S = K.S, used = new Set(S.cals.map(c => c.acct).filter(Boolean)), a = sec();
-  let ch = false; Object.keys(a).forEach(k => { if (!used.has(k)) { delete a[k]; ch = true; } }); if (ch) setSec(a);
+  let ch = false; Object.keys(a).forEach(k => { if (k !== "todoist" && !used.has(k)) { delete a[k]; ch = true; } }); if (ch) setSec(a);
 }
 function queue(job) { busy = busy.then(job, job); return busy; }
 let pushT = 0, saving = false;
@@ -570,7 +570,8 @@ window.KK_onSave = () => {
   clearTimeout(pushT);
   pushT = setTimeout(() => queue(async () => {
     forget();
-    if (!K.S.cals.some(c => c.acct && !c.ro)) { scheduleReminders(); return; }
+    try { await pushTodoist(); } catch (e) { lastErr = e.message; }
+    if (!K.S.cals.some(c => c.acct && !c.ro)) { saving = true; K.save(); saving = false; status(); scheduleReminders(); return; }
     try { await pushDav(); await pushMs(); lastErr = null; lastSync = new Date(); }
     catch (e) { lastErr = e.message; }
     saving = true; K.save(); saving = false; status(); scheduleReminders();
@@ -583,6 +584,7 @@ async function syncAll(manual) {
     const S = K.S, errs = [];
     try { if (S.cals.some(c => c.acct && !c.ro && c.type !== "ms")) await pushDav(); } catch (e) { errs.push(e.message); }
     try { if (S.cals.some(c => c.type === "ms" && !c.ro)) await pushMs(); } catch (e) { errs.push(e.message); }
+    try { await pushTodoist(); await pullTodoist(); } catch (e) { errs.push(e.message); }
     for (const cal of S.cals) {
       try { if (cal.type === "ics" && cal.url) await pullIcs(cal); else if (cal.type === "ms" && cal.acct) await pullMs(cal); else if (cal.acct) await pullDav(cal); }
       catch (e) { errs.push(cal.name + ": " + e.message); }
@@ -592,6 +594,84 @@ async function syncAll(manual) {
     if (manual) K.toast(errs.length ? "Abgleich mit Fehlern" : "Alles abgeglichen", errs[0] || null);
   });
 }
+
+/* ---------- Todoist: Aufgaben in beide Richtungen abgleichen ---------- */
+const TD = "https://api.todoist.com/api/v1";
+const tdTok = () => sec().todoist || "";
+async function td(method, path, body) {
+  const r = await hfetch(TD + path, { method, headers: Object.assign({ Authorization: "Bearer " + tdTok() }, body ? { "Content-Type": "application/json" } : {}), body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401 || r.status === 403) throw new Error("Todoist: Zugang ungültig, bitte neu verbinden");
+  if (!r.ok) throw new Error("Todoist: Fehler " + r.status);
+  const t = await r.text(); return t ? JSON.parse(t) : null;
+}
+const tdSig = t => JSON.stringify([t.title, !!t.done, t.sDate || "", t.sStart || "", t.sDur || 0]);
+function tdToTask(x) {
+  const due = x.due || null, raw = due ? (due.datetime || due.date || "") : "";
+  let d = "", tm = "";
+  if (raw) {
+    d = raw.slice(0, 10);
+    if (raw.length > 10) { if (/Z$|[+-]\d\d:?\d\d$/.test(raw)) { const dt = new Date(raw); d = K.ymd(dt); tm = K.toMin(dt.getHours() * 60 + dt.getMinutes()); } else tm = raw.slice(11, 16); }
+  }
+  const t = { id: "td" + x.id, tid: String(x.id), src: "todoist", title: x.content || "(ohne Titel)", due: d || K.ymd(new Date()), done: !!x.checked };
+  if (!d) t.nodue = true;
+  if (due && due.is_recurring) t.rec = true;
+  if (tm) { t.sDate = d; t.sStart = tm; t.sDur = x.duration ? (x.duration.unit === "day" ? 24 * 60 : x.duration.amount) : 30; }
+  t.tsig = tdSig(t); return t;
+}
+const utcIso = (ds, tm) => { const [h, m] = tm.split(":").map(Number), d = K.parse(ds); d.setHours(h, m, 0, 0); return d.toISOString().slice(0, 19) + "Z"; };
+async function pullTodoist() {
+  if (!tdTok()) return;
+  const S = K.S, fresh = []; let cursor = null, n = 0;
+  do {
+    const j = await td("GET", "/tasks?limit=200" + (cursor ? "&cursor=" + encodeURIComponent(cursor) : "")) || {};
+    (j.results || []).forEach(x => fresh.push(tdToTask(x))); cursor = j.next_cursor || null;
+  } while (cursor && ++n < 20);
+  const mine = S.tasks.filter(t => t.src === "todoist");
+  const dirty = mine.filter(t => t.tsig !== tdSig(t)), dIds = new Set(dirty.map(t => t.tid));
+  // erledigte bleiben bis Mitternacht sichtbar
+  const doneToday = mine.filter(t => t.done && !dIds.has(t.tid) && t.doneAt === K.ymd(new Date()) && !fresh.some(f => f.tid === t.tid));
+  S.tasks = S.tasks.filter(t => t.src !== "todoist").concat(fresh.filter(t => !dIds.has(t.tid)), dirty, doneToday);
+}
+async function pushTodoist() {
+  if (!tdTok()) return;
+  const S = K.S;
+  if (S.set.tdNew !== false) for (const t of S.tasks.filter(t => !t.src && !t.done && !t.keepLocal)) {
+    const b = { content: t.title };
+    if (t.sDate && t.sStart) { b.due_datetime = utcIso(t.sDate, t.sStart); b.duration = t.sDur || 30; b.duration_unit = "minute"; } else if (t.due) b.due_date = t.due;
+    const r = await td("POST", "/tasks", b);
+    if (r && r.id) { const n = tdToTask(r); Object.keys(t).forEach(k => delete t[k]); Object.assign(t, n); }
+  }
+  for (const t of S.tasks.filter(t => t.src === "todoist" && t.tsig !== tdSig(t))) {
+    const prev = JSON.parse(t.tsig || "[]");
+    if (t.done && !prev[1]) { await td("POST", `/tasks/${t.tid}/close`); t.doneAt = K.ymd(new Date()); }
+    else if (!t.done && prev[1]) await td("POST", `/tasks/${t.tid}/reopen`);
+    if (!t.done) {
+      const b = {};
+      if (t.title !== prev[0]) b.content = t.title;
+      const timeCh = (t.sDate || "") !== prev[2] || (t.sStart || "") !== prev[3] || (t.sDur || 0) !== prev[4];
+      if (timeCh && !t.rec) {
+        if (t.sDate && t.sStart) { b.due_datetime = utcIso(t.sDate, t.sStart); b.duration = t.sDur || 30; b.duration_unit = "minute"; }
+        else b.due_date = prev[2] || t.due;
+      }
+      if (Object.keys(b).length) await td("POST", `/tasks/${t.tid}`, b);
+    }
+    t.tsig = tdSig(t);
+  }
+}
+window.KK_todoist = {
+  connected: () => !!tdTok(),
+  async connect(token) {
+    token = String(token || "").trim(); if (!/^[0-9a-f]{20,}$/i.test(token)) throw new Error("Das sieht nicht wie ein Todoist-Token aus (lange Zeichenfolge aus Zahlen und Buchstaben a–f).");
+    const a = sec(); a.todoist = token; setSec(a);
+    try { await td("GET", "/tasks?limit=1"); } catch (e) { const b = sec(); delete b.todoist; setSec(b); throw e; }
+    K.S.set.tdNew = K.S.set.tdNew !== false;
+    K.S.tasks.forEach(t => { if (!t.src) t.keepLocal = true; }); // bisherige Aufgaben bleiben nur hier
+    await queue(async () => { await pullTodoist(); saving = true; K.save(); saving = false; K.render(); });
+    return K.S.tasks.filter(t => t.src === "todoist").length;
+  },
+  disconnect() { const a = sec(); delete a.todoist; setSec(a); K.S.tasks = K.S.tasks.filter(t => t.src !== "todoist"); K.save(); K.render(); },
+  sync: () => syncAll(true)
+};
 
 /* ---------- Anzeige unten in der Seitenleiste ---------- */
 function status() {

@@ -776,6 +776,8 @@ body.placing .mic{opacity:0;pointer-events:none}
   #ev-date,#ev-rep,#ev-adbtn,.movebtns button,.sheet select{min-height:40px}
   .sr-del{min-width:36px;min-height:36px}
 }
+.td-tag{display:inline-block;font-size:.72em;font-weight:700;color:#e44332;border:1px solid color-mix(in srgb,#e44332 45%,transparent);border-radius:6px;padding:0 5px;margin-right:5px;vertical-align:1px}
+.td-form{display:grid;gap:8px}.td-form input{font:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg)}
 .bk-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.bk-row .btn{flex:1 1 140px}
 .tp-h{font-size:.78em;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .tp-exact{display:flex;align-items:center;gap:8px;font-size:.85em;color:var(--muted);font-weight:600}
@@ -948,6 +950,7 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
       <label class="inline"><input type="checkbox" id="set-cbar"> Kalender-Leiste unter der Kopfzeile anzeigen</label></div>
     <div class="setgroup"><h3>Farben</h3><div id="colors" class="form"></div><button type="button" class="btn" id="set-addcal">+ Kalender hinzufügen</button></div>
     <div class="setgroup"><h3>Konten</h3><div id="accounts" class="form"></div></div>
+    <div class="setgroup" id="td-group"><h3>Todoist</h3><div id="td-box"></div></div>
     <div class="setgroup"><h3>Sicherung</h3><p class="set-help">Speichert alle Termine, Aufgaben und Einstellungen in eine Datei (ohne Passwörter). Damit kannst du alles wiederherstellen oder in eine andere Kalender-App übernehmen.</p>
       <div class="bk-row"><button type="button" class="btn" id="bk-save">Sicherung speichern</button><button type="button" class="btn" id="bk-load">Sicherung laden</button></div>
       <div class="bk-row"><button type="button" class="btn" id="bk-ics">Termine als .ics exportieren</button><button type="button" class="btn" id="bk-icsin">.ics importieren</button></div>
@@ -1397,7 +1400,7 @@ function renderTaskPop(){
     html+=`<div class="tgroup${name==="Überfällig"?" late":""}">${name} <span class="num">${l.length}</span></div>`;
     l.forEach(t=>{const sched=t.sDate&&t.sStart;
       html+=`<div class="trow${t.done?" done":""}">${t.done?"":`<button type="button" class="grab" data-grab="${t.id}" aria-label="${esc(t.title)} in den Kalender ziehen">⠿</button>`}<input type="checkbox" data-task="${t.id}" ${t.done?"checked":""} aria-label="${esc(t.title)} erledigt">
-        <span class="tt">${esc(t.title)}<small>${t.due===td?"Heute fällig":"Fällig "+fmtDay(parse(t.due))}${sched?` · <b>eingeplant ${WDS[(parse(t.sDate).getDay()+6)%7]} ${parse(t.sDate).getDate()}., ${t.sStart}</b>`:""}</small></span>
+        <span class="tt">${esc(t.title)}<small>${t.src==="todoist"?`<span class="td-tag">Todoist</span>`:""}${t.nodue?"Ohne Datum":t.due===td?"Heute fällig":"Fällig "+fmtDay(parse(t.due))}${sched?` · <b>eingeplant ${WDS[(parse(t.sDate).getDay()+6)%7]} ${parse(t.sDate).getDate()}., ${t.sStart}</b>`:""}</small></span>
         ${t.done?"":`<button class="plan-btn${sched?" on":""}" data-plan="${t.id}" aria-label="Im Kalender einplanen"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></button>`}</div>`;
       if(planOpen.has(t.id)&&!t.done) html+=`<form class="plan-form" data-planform="${t.id}">
         <input type="date" id="pd-${t.id}" value="${t.sDate||t.due}" aria-label="Tag">
@@ -1731,6 +1734,7 @@ function renderSettings(){renderSets();
   $("set-rot").value=S.set.rot||"grid";$("set-style").value=S.set.style||"tint";$("set-theme").value=S.set.theme;$("set-font").value=S.set.font;$("set-gaps").checked=S.set.gaps;$("set-kw").checked=S.set.kw;$("set-hol").checked=S.set.hol;$("set-remind").value=String(S.set.remind);
   $("colors").innerHTML=S.cals.map(c=>`<div class="calcolor"><b>${esc(c.name)}</b><div class="swatches">${PALETTE.map(p=>`<button class="sw" style="background:${p}" data-sw="${c.id}" data-color="${p}" aria-label="Farbe ${p} für ${esc(c.name)}" aria-pressed="${p===c.color}"></button>`).join("")}</div></div>`).join("");
   const acc=[["Infomaniak (Privat)","CalDAV mit App-Passwort","ok","Bereit zum Verbinden"],["ZHAW Stundenplan","Abo-Link von stundenplan.zhaw.ch","ok","Bereit zum Verbinden"],["Arbeit (Outlook)","Eigener Microsoft-Schlüssel nötig","wait","Einrichtung nötig"],["ZHAW (Outlook)","Freigabe der ZHAW nötig","wait","Wartet auf ZHAW"]];
+  renderTodoist();
   $("accounts").innerHTML=acc.map(a=>`<div class="acc"><span><b>${a[0]}</b><br><small style="color:var(--muted)">${a[1]}</small></span><span class="pill ${a[2]}">${a[3]}</span></div>`).join("");
 }
 
@@ -2067,6 +2071,21 @@ function openActions(el,ev){
   vv.addEventListener("resize",upd);vv.addEventListener("scroll",upd);upd()})();
 /* «Fertig» auf der Tastatur im Titel: Tastatur zu, Speichern ist sichtbar */
 $("ev-title").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();e.target.blur()}});
+/* ---------- Todoist verbinden ---------- */
+function renderTodoist(){const box=$("td-box"),T=window.KK_todoist;if(!box)return;
+  if(!T){box.innerHTML=`<p class="set-help">Deine Todoist-Aufgaben erscheinen in der Aufgabenliste und lassen sich abhaken und im Kalender einplanen. Das Verbinden geht in der installierten App.</p>`;return}
+  if(T.connected()){const n=S.tasks.filter(t=>t.src==="todoist"&&!t.done).length;
+    box.innerHTML=`<p class="set-help">✓ Verbunden · ${n} offene Aufgaben aus Todoist. Abhaken, Einplanen und neue Aufgaben werden übertragen.</p>
+      <label class="inline"><input type="checkbox" id="td-new" ${S.set.tdNew!==false?"checked":""}> Neue Aufgaben auch in Todoist anlegen</label>
+      <div class="bk-row"><button type="button" class="btn" id="td-sync">Jetzt abgleichen</button><button type="button" class="btn" id="td-off">Trennen</button></div>`;
+    $("td-new").onchange=e=>{S.set.tdNew=e.target.checked;save()};
+    $("td-sync").onclick=()=>T.sync();
+    $("td-off").onclick=()=>{T.disconnect();renderTodoist();toast("Todoist getrennt","Die Aufgaben aus Todoist sind hier entfernt, in Todoist bleibt alles.",5000)};return}
+  box.innerHTML=`<p class="set-help">So bekommst du den Schlüssel: Todoist öffnen → Einstellungen → <b>Integrationen</b> → <b>Entwickler</b> → «API-Token» kopieren und hier einfügen. Die Aufgaben gehen direkt zwischen deinem Gerät und Todoist hin und her.</p>
+    <form class="td-form" id="td-form"><input id="td-token" placeholder="API-Token einfügen" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary">Mit Todoist verbinden</button></form>`;
+  $("td-form").onsubmit=async e=>{e.preventDefault();const b=e.target.querySelector("button");b.disabled=true;b.textContent="Verbinde …";
+    try{const n=await T.connect($("td-token").value);toast("Todoist verbunden",n+" Aufgaben übernommen",5000);renderTodoist()}
+    catch(err){toast("Verbinden ging nicht",String(err&&err.message||err).slice(0,140),7000);b.disabled=false;b.textContent="Mit Todoist verbinden"}}}
 /* ---------- Sicherung: speichern, laden, .ics ---------- */
 const stamp=()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
 async function saveFile(name,text,mime){
