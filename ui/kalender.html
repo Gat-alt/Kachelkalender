@@ -1102,7 +1102,8 @@ if(!S.v4){const g={};S.ev.forEach(e=>{if(e.cal==="plan"||e.allDay||e.rep)return;
 if(!S.v5){S.sets=[{id:"all",name:"Alle",all:true}];if(window.KK_IS_APP)S.v4=1;const has=id=>S.cals.some(c=>c.id===id);
   [["Studium",["zhaw","plan"]],["Arbeit",["arbeit"]],["Privat",["privat"]]].forEach(([n,l])=>{l=l.filter(has);if(l.length)S.sets.push({id:"s"+n,name:n,cals:l})});S.v5=1}
 if(!S.v6){const g=S.cals.find(c=>c.id==="google");if(g){S.ev.forEach(e=>{if(e.cal==="google")e.cal=S.cals.some(c=>c.id==="privat")?"privat":S.cals[0].id});S.cals=S.cals.filter(c=>c!==g);(S.sets||[]).forEach(st=>{if(st.cals)st.cals=st.cals.filter(x=>x!=="google")})}S.v6=1}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(window.KK_onSave)window.KK_onSave()};
+let evVer=0;
+const save=()=>{evVer++;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(window.KK_onSave)window.KK_onSave()};
 
 let view=(()=>{try{return localStorage.getItem(KEY+"-view")||"tiles"}catch(e){return "tiles"}})();
 let cursor=new Date();
@@ -1140,12 +1141,13 @@ function occurs(m,d){
 let expCache=null;
 function expanded(){
   const key=S.ev.length+"|"+ymd(cursor)+"|"+JSON.stringify(S.ev.filter(e=>e.rep).map(e=>[e.id,e.date,e.rep,e.start,e.end,e.title,e.cal,e.loc]));
-  if(expCache&&expCache.key===key)return expCache.list;
+  if(expCache&&expCache.key===key&&expCache.arr===S.ev&&expCache.n===evVer)return expCache.list;
   const now=new Date(),a=addDays(cursor<now?cursor:now,-75),b=addDays(cursor>now?cursor:now,110),out=[];
   S.ev.forEach(e=>{if(!e.rep){out.push(e);return}
     for(let d=new Date(Math.max(a,parse(e.date)));d<=b;d=addDays(d,1))if(occurs(e,d)){const ds=ymd(d);out.push({...e,id:e.id+"@"+ds,date:ds,sid:e.id})}});
-  expCache={key,list:out};return out}
-function findEv(id){if(!id)return null;if(id.includes("@")){const [sid,ds]=id.split("@"),m=S.ev.find(x=>x.id===sid);return m?{...m,id,date:ds,sid}:null}return S.ev.find(x=>x.id===id)||null}
+  expCache={key,list:out,arr:S.ev,n:evVer};return out}
+function findEv(id){if(!id)return null;const d=S.ev.find(x=>x.id===id);if(d)return d;const k=id.lastIndexOf("@");if(k>0){const sid=id.slice(0,k),ds=id.slice(k+1),m=S.ev.find(x=>x.id===sid);if(m)return {...m,id,date:ds,sid}}
+  try{const x=(expCache&&expCache.list||[]).find(x=>x.id===id);if(x)return x}catch(_){}return null}
 const plain=e=>{const c={...e};delete c.rep;delete c.sid;return c};
 /* Einzelnen Termin einer Serie herauslösen; gibt das neue, echte Objekt + Rückgängig zurück */
 function detach(o){
@@ -2127,7 +2129,7 @@ document.addEventListener("click",e=>{
     return;
   }
   const ev=e.target.closest("[data-ev]");
-  if(ev){e.stopPropagation();const o=findEv(ev.dataset.ev);if(!o)return;
+  if(ev){e.stopPropagation();const o=findEv(ev.dataset.ev);if(!o){expCache=null;render();toast("Termin nicht gefunden","Ansicht neu geladen, bitte nochmals antippen ("+String(ev.dataset.ev).slice(0,24)+")",5000);return}
     if(!$("search-scrim").hidden){$("search-scrim").hidden=true;openEditor(o);return}
     try{openPeek(ev,o)}catch(err){try{$("peek").hidden=true;$("peek-scrim").hidden=true}catch(_){}openActions(ev,o);toast("Grosse Ansicht ging nicht",String(err&&err.message||err).slice(0,120),6000)}return}
   const tp=e.target.closest("[data-tpill]");if(tp){$("task-btn").click();return}
