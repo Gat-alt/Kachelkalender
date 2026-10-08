@@ -762,17 +762,27 @@ body.placing .mic{opacity:0;pointer-events:none}
 .tto{color:var(--muted);font-weight:600}.tto b{color:var(--fg);font-size:1.15em}
 .tpick{background:var(--surface-2);border-radius:12px;padding:8px;display:grid;gap:8px;animation:pop .15s ease both}
 .tpick[hidden]{display:none}
-.tgrid-h{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
-.tmins{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
+.tgrid-h{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}
+.tmins{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
+.tpick button{padding:6px 0}
 .tsum{flex-wrap:wrap}
 .tbtn-end b{font-size:1.25em}
+/* Handy: grössere Tippflächen, damit nichts daneben geht */
+@media (pointer:coarse){
+  .ibtn,#menu,#view-sel{min-height:38px;min-width:36px}
+  .schip,.cchip,.calchip{min-height:34px}
+  .sheet input[type=checkbox]{width:22px;height:22px;flex:none}
+  .sw{width:32px;height:32px}
+  #ev-date,#ev-rep,#ev-adbtn,.movebtns button,.sheet select{min-height:40px}
+  .sr-del{min-width:36px;min-height:36px}
+}
 .bk-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.bk-row .btn{flex:1 1 140px}
 .tp-h{font-size:.78em;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .tp-exact{display:flex;align-items:center;gap:8px;font-size:.85em;color:var(--muted);font-weight:600}
 .tp-exact input{font:inherit;font-size:1.1em;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:6px 10px}
 .tpick button,.durs button{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:9px;padding:8px 0;font-weight:600;font-variant-numeric:tabular-nums}
 .tpick button[aria-pressed="true"],.durs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
-.durs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.durs{display:flex;gap:6px;flex-wrap:wrap;padding-bottom:2px}
 .durs::-webkit-scrollbar{display:none}
 .durs button{flex:none;padding:7px 12px;border-radius:999px;font-size:.9em}
 /* Neuer Termin: kurz aufleuchten, damit man sieht, wo er ist */
@@ -874,7 +884,7 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
       <div class="ev-span" id="ev-span" hidden>Bis <input type="date" id="ev-edate" aria-label="Letzter Tag"><span id="ev-days" class="num"></span></div>
       <div class="ev-when" id="ev-times">
         <div class="tsum"><button type="button" class="tbtn" id="ev-tbtn" aria-expanded="false"><span class="tl">Beginn</span><b id="ev-tstart" class="num">09:00</b></button><button type="button" class="tbtn tbtn-end" id="ev-tbtn2" aria-expanded="false"><span class="tl">Ende</span><b id="ev-tend" class="num">10:00</b></button></div>
-        <div class="tpick" id="ev-tpick" hidden><div class="tp-h" id="ev-tpwhat">Beginn wählen</div><div class="tgrid-h" id="ev-hrs"></div><div class="tmins" id="ev-mins"></div><label class="tp-exact">Genau: <input type="time" id="ev-texact" step="60"></label></div>
+        <div class="tpick" id="ev-tpick" hidden><div class="tp-h" id="ev-tpwhat">Beginn wählen</div><div class="tgrid-h" id="ev-hrs"></div><div class="tmins" id="ev-mins"></div><label class="tp-exact">Andere Uhrzeit: <input type="time" id="ev-texact" step="60"></label></div>
         <div class="durs" id="ev-durs" role="group" aria-label="Dauer"></div>
         <input type="time" id="ev-start" aria-label="Beginn" hidden><input type="time" id="ev-end" aria-label="Ende" hidden>
       </div>
@@ -1655,7 +1665,7 @@ $("ev-allday").addEventListener("change",syncAllday);
   $("ev-hrs").onclick=e=>{const b=e.target.closest("[data-h]");if(!b)return;setCur(+b.dataset.h*60+cur()%60)};
   $("ev-mins").onclick=e=>{const b=e.target.closest("[data-m]");if(!b)return;setCur(Math.floor(cur()/60)*60+ +b.dataset.m);closePick()};
   $("ev-texact").addEventListener("change",e=>{if(!e.target.value)return;setCur(mins(e.target.value))});
-  $("ev-durs").onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;window.KK_dur=+b.dataset.d;qTouch();eI.value=toMin((mins(sI.value||"09:00")+ +b.dataset.d)%1440);syncAllday()};
+  $("ev-durs").onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;window.KK_dur=+b.dataset.d;qTouch();$("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false);$("ev-tbtn2").setAttribute("aria-expanded",false);eI.value=toMin((mins(sI.value||"09:00")+ +b.dataset.d)%1440);syncAllday()};
   sync();
 }
 /* Überschneidung live anzeigen */
@@ -2047,7 +2057,7 @@ function openActions(el,ev){
     const da=$("act-delall");da.hidden=!ev.sid;da.classList.remove("armed");da.querySelector("span").textContent="Serie löschen";
     if(ev.sid)$("act-sub").textContent+=" · ↻ "+repText(S.ev.find(x=>x.id===ev.sid));
     $("act-note").hidden=!ro;$("act-hl").querySelector("span").textContent=ev.hl?"Nicht mehr hervorheben":"Hervorheben";$("act-hl").classList.toggle("on",!!ev.hl);$("act-scrim").hidden=false;
-  },320);
+  },0);
 }
 
 /* Tastatur erkennen (sichtbarer Bereich wird kleiner) */
@@ -2117,6 +2127,28 @@ function importText(text,isIcs){
   toast("Sicherung geladen",`${S.ev.length} Termine vom ${new Date(j.saved).toLocaleDateString("de-CH")}`,8000,{label:"Rückgängig",fn:()=>{const o=JSON.parse(before);Object.keys(S).forEach(k=>delete S[k]);Object.assign(S,o);save();expCache=null;render()}});return S.ev.length}
 window.KK_backup={backupJSON,toICS,fromICS,importText};
 bkInfo();
+/* ---------- Fenster schnell schliessen: Zurück-Taste (Android) und nach unten wischen ---------- */
+(function(){
+  const wins=()=>[...document.querySelectorAll(".scrim")].filter(s=>!s.hidden).concat($("peek").hidden?[]:[$("peek")]);
+  let depth=0,skipPop=0;
+  const sync=()=>{const n=wins().length;
+    while(depth<n){try{history.pushState({kk:depth+1},"")}catch(_){}depth++}
+    while(depth>n){depth--;skipPop++;try{history.back()}catch(_){skipPop--}}};
+  const mo=new MutationObserver(()=>setTimeout(sync,0));
+  document.querySelectorAll(".scrim,#peek").forEach(x=>mo.observe(x,{attributes:true,attributeFilter:["hidden"]}));
+  addEventListener("popstate",()=>{if(skipPop>0){skipPop--;return}
+    const l=wins();if(!l.length){depth=0;return}depth=Math.max(0,depth-1);
+    const top=l.includes($("peek"))?$("peek"):l[l.length-1];
+    if(top.id==="peek")closePeek();else if(top.id==="ev-scrim"&&$("ev-cancel"))$("ev-cancel").click();else top.hidden=true});
+  /* Nach unten wischen am Kopf eines Fensters (oder wenn ganz oben) schliesst es */
+  let sw=null;
+  document.addEventListener("touchstart",e=>{if(e.touches.length!==1)return;const sh=e.target.closest(".scrim.bottom .sheet,#peek");if(!sh)return;
+    if(e.target.closest("input,textarea,select,.tpick,.durs"))return;
+    const sc=e.target.closest(".sheet,#pk-body");sw={sh,y0:e.touches[0].clientY,top:!sc||sc.scrollTop<=0,dy:0}},{passive:true});
+  document.addEventListener("touchmove",e=>{if(!sw)return;sw.dy=e.touches[0].clientY-sw.y0},{passive:true});
+  document.addEventListener("touchend",()=>{if(!sw)return;const s=sw;sw=null;if(!s.top||s.dy<110)return;
+    if(s.sh.id==="peek"){closePeek();return}const sc=s.sh.closest(".scrim");if(sc&&!sc.hidden){if(sc.id==="ev-scrim"&&$("ev-cancel"))$("ev-cancel").click();else sc.hidden=true}});
+})();
 /* Links in Terminen erkennen und öffnen */
 const LINK_RE=/\b(?:https?:\/\/|www\.)[^\s<>"']+|\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/gi;
 const cleanLink=u=>{u=u.replace(/[.,;:!?)\]>]+$/,"");if(/^www\./i.test(u))u="https://"+u;else if(!/^https?:/i.test(u)&&u.includes("@"))u="mailto:"+u;return u};
@@ -2179,7 +2211,11 @@ function closePeek(then){
   const r=peekFrom;if(r){setBox(pk,{l:r.left,t:r.top,w:Math.max(r.width,40),h:Math.max(r.height,24)});pk.style.borderRadius="8px"}
   setTimeout(()=>{pk.hidden=true;$("peek-scrim").hidden=true;peekId=null;if(then)then()},then?120:240);
 }
-$("peek-scrim").addEventListener("click",e=>{e.stopPropagation();if(Date.now()-peekAt<350)return;closePeek()});
+$("peek-scrim").addEventListener("click",e=>{e.stopPropagation();if(Date.now()-peekAt<350)return;
+  /* liegt unter der Stelle ein anderer Termin? Dann direkt zu diesem wechseln */
+  const under=document.elementsFromPoint(e.clientX,e.clientY).map(x=>x.closest&&x.closest("#view [data-ev]")).find(Boolean);
+  if(under&&under.dataset.ev!==peekId){const o=findEv(under.dataset.ev);if(o){const pk=$("peek");pk.hidden=true;pk.classList.remove("on");try{openPeek(under,o)}catch(_){openActions(under,o)}return}}
+  closePeek()});
 $("peek").addEventListener("click",e=>{e.stopPropagation();const a=e.target.closest("[data-url]");if(a){e.preventDefault();openLink(a.dataset.url);return}
   /* nochmals auf die Karte tippen: wieder klein */
   if(e.target.closest("button"))return;const sel=getSelection&&getSelection();if(sel&&String(sel).trim())return;closePeek()});

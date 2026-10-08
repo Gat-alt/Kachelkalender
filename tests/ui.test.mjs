@@ -270,7 +270,40 @@ console.log("Sicherung und Erinnerungen");
   await pg.context().close();
 }
 
-// 8) Querformat und Farben
+// 8) Schnell wechseln und schliessen
+console.log("Wechseln und Schliessen");
+{
+  const pg = await fresh("grid");
+  const ids = await pg.evaluate(() => [...document.querySelectorAll("#view .col [data-ev]")].map(x => x.dataset.ev));
+  const els = [];
+  for (const id of ids) { const e = await pg.$(`#view [data-ev="${id}"]`); const b = await e.boundingBox(); if (b && b.y > 160 && b.y < 700) els.push([id, b]); }
+  // Karte auf, dann einen anderen Termin antippen, der nicht von der Karte verdeckt ist
+  const [id1, b1] = els[0];
+  await tap(pg, b1.x + Math.min(b1.width / 2, 20), b1.y + 6); await pg.waitForTimeout(420);
+  const pr = await pg.evaluate(() => document.getElementById("peek").getBoundingClientRect().toJSON());
+  const other = els.find(([id, b]) => id !== id1 && (b.y + 6 < pr.top || b.y + 6 > pr.bottom));
+  if (other) {
+    await tap(pg, other[1].x + Math.min(other[1].width / 2, 20), other[1].y + 6); await pg.waitForTimeout(450);
+    const t = await pg.evaluate(() => document.getElementById("pk-title").textContent);
+    const want = await pg.evaluate(id => window._K.S.ev.find(e => id.startsWith(e.id)).title, other[0]);
+    check("Karte offen: anderer Termin antippen wechselt direkt", (await pg.isVisible("#peek")) && t === want, t + " / " + want);
+  }
+  await pg.evaluate(() => history.back()); await pg.waitForTimeout(450);
+  check("Zurück-Taste schliesst die Karte", !(await pg.isVisible("#peek")));
+  await pg.click("#fab"); await pg.waitForTimeout(300);
+  await pg.evaluate(() => history.back()); await pg.waitForTimeout(450);
+  check("Zurück-Taste schliesst den Editor", !(await pg.isVisible("#ev-scrim")));
+  await pg.click("#bb-tasks"); await pg.waitForTimeout(300);
+  const sb = await (await pg.$("#task-scrim .sheet")).boundingBox();
+  await pg.evaluate(([x, y]) => { const t = document.querySelector("#task-scrim .sheet h2"); const mk = (type, yy) => t.dispatchEvent(new TouchEvent(type, { bubbles: true, touches: type === "touchend" ? [] : [new Touch({ identifier: 1, target: t, clientX: x, clientY: yy })], changedTouches: [new Touch({ identifier: 1, target: t, clientX: x, clientY: yy })] }));
+    mk("touchstart", y); mk("touchmove", y + 60); mk("touchmove", y + 160); mk("touchend", y + 160); }, [sb.x + 60, sb.y + 20]);
+  await pg.waitForTimeout(300);
+  check("Nach unten wischen schliesst Aufgaben", !(await pg.isVisible("#task-scrim")));
+  check("keine JS-Fehler", !pg.errors.length, pg.errors.join(" | "));
+  await pg.context().close();
+}
+
+// 9) Querformat und Farben
 console.log("Querformat, Hell/Dunkel");
 {
   const pg = await fresh("tiles");
