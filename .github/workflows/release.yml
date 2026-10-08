@@ -17,7 +17,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Zuerst automatisch durch die App tippen. Schlägt etwas fehl, wird nichts gebaut.
+  pruefen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Automatische Prüfung
+        run: npm test
+
   desktop:
+    needs: pruefen
     strategy:
       fail-fast: false
       matrix:
@@ -60,6 +75,7 @@ jobs:
 
   # Handy-Version läuft gleichzeitig mit den Computer-Versionen, damit die APK schnell da ist
   android:
+    needs: pruefen
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

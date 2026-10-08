@@ -206,9 +206,9 @@ function toEvents(list, cal, meta, win) {
     else {
       ev.start = s.t;
       if (!e) ev.end = K.toMin(Math.min(24 * 60 - 1, K.mins(s.t) + 60));
-      else if (e.d > s.d) ev.end = "23:59";
+      else if (e.d > s.d) { if (e.t === "00:00" && K.ymd(K.addDays(K.parse(s.d), 1)) === e.d) ev.end = "23:59"; else { ev.end = e.t; ev.edate = e.d; } }
       else ev.end = e.t;
-      if (K.mins(ev.end) <= K.mins(ev.start)) ev.end = K.toMin(Math.min(24 * 60 - 1, K.mins(ev.start) + 15));
+      if (!ev.edate && K.mins(ev.end) <= K.mins(ev.start)) ev.end = K.toMin(Math.min(24 * 60 - 1, K.mins(ev.start) + 15));
     }
     if (v.alarm) { const dm = durMin(v.alarm.v); if (dm != null && dm <= 0) ev.remind = -dm; }
     if (p.TRANSP && p.TRANSP.v === "TRANSPARENT") ev.free = true;
@@ -256,7 +256,7 @@ function buildICS(e) {
   if (!e.allDay && LOCAL_TZ === "Europe/Zurich") L.push(...VTZ_ZRH);
   L.push("BEGIN:VEVENT", "UID:" + uid, "DTSTAMP:" + utcStamp(new Date()));
   if (e.allDay) { L.push("DTSTART;VALUE=DATE:" + dOnly(e.date), "DTEND;VALUE=DATE:" + dOnly(K.ymd(K.addDays(K.parse(e.edate || e.date), 1)))); }
-  else { L.push(dtLine("DTSTART", e.date, e.start), dtLine("DTEND", e.date, e.end)); }
+  else { L.push(dtLine("DTSTART", e.date, e.start), dtLine("DTEND", e.edate && e.edate > e.date ? e.edate : e.date, e.end)); }
   L.push("SUMMARY:" + icsEsc(e.title));
   if (e.loc) L.push("LOCATION:" + icsEsc(e.loc));
   if (e.notes) L.push("DESCRIPTION:" + icsEsc(e.notes));
@@ -490,9 +490,10 @@ function msToEv(g, cal) {
   } else {
     const s = new Date(g.start.dateTime.slice(0, 19) + "Z"), e = new Date(g.end.dateTime.slice(0, 19) + "Z");
     ev.date = K.ymd(s); ev.start = K.toMin(s.getHours() * 60 + s.getMinutes());
-    if (K.ymd(e) > ev.date) { ev.end = "23:59"; ev.lock = true; } // mehrtägig mit Uhrzeit: in Outlook bearbeiten
-    else ev.end = K.toMin(e.getHours() * 60 + e.getMinutes());
-    if (K.mins(ev.end) <= K.mins(ev.start)) ev.end = K.toMin(Math.min(24 * 60 - 1, K.mins(ev.start) + 15));
+    const em = e.getHours() * 60 + e.getMinutes();
+    if (K.ymd(e) > ev.date) { if (em === 0 && K.ymd(K.addDays(K.parse(ev.date), 1)) === K.ymd(e)) ev.end = "23:59"; else { ev.end = K.toMin(em); ev.edate = K.ymd(e); } }
+    else ev.end = K.toMin(em);
+    if (!ev.edate && K.mins(ev.end) <= K.mins(ev.start)) ev.end = K.toMin(Math.min(24 * 60 - 1, K.mins(ev.start) + 15));
   }
   ev.remind = g.isReminderOn ? (g.reminderMinutesBeforeStart || 0) : -1;
   if (g.showAs === "free") ev.free = true;
@@ -523,7 +524,7 @@ function msBody(e, full) {
   const b = { subject: e.title, isAllDay: !!e.allDay, location: { displayName: e.loc || "" }, showAs: e.free ? "free" : "busy" };
   const iso = (ds, t) => { const [h, m] = t.split(":").map(Number), d = K.parse(ds); d.setHours(h, m, 0, 0); return d.toISOString().slice(0, 19); };
   if (e.allDay) { b.start = { dateTime: e.date + "T00:00:00", timeZone: "UTC" }; b.end = { dateTime: K.ymd(K.addDays(K.parse(e.edate || e.date), 1)) + "T00:00:00", timeZone: "UTC" }; }
-  else { b.start = { dateTime: iso(e.date, e.start), timeZone: "UTC" }; b.end = { dateTime: iso(e.date, e.end), timeZone: "UTC" }; }
+  else { b.start = { dateTime: iso(e.date, e.start), timeZone: "UTC" }; b.end = { dateTime: iso(e.edate && e.edate > e.date ? e.edate : e.date, e.end), timeZone: "UTC" }; }
   const r = e.remind == null ? K.S.set.remind : e.remind; b.isReminderOn = r >= 0; if (r >= 0) b.reminderMinutesBeforeStart = r;
   if (full || (e.notes || "") !== (e.rnotes || "")) b.body = { contentType: "text", content: e.notes || "" };
   if (e.rep && MSREP[e.rep.f]) {

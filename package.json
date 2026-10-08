@@ -1,14 +1,16 @@
 {
   "name": "kachelkalender",
   "private": true,
-  "version": "0.3.10",
+  "version": "0.3.11",
   "scripts": {
     "build:web": "node scripts/build-web.mjs",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "node tests/ui.test.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.1",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "playwright": "^1.56.1"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1"

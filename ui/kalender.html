@@ -1144,9 +1144,9 @@ function expanded(){
   if(expCache&&expCache.key===key&&expCache.arr===S.ev&&expCache.n===evVer)return expCache.list;
   const now=new Date(),a=addDays(cursor<now?cursor:now,-75),b=addDays(cursor>now?cursor:now,110),out=[];
   S.ev.forEach(e=>{if(!e.rep){out.push(e);return}
-    for(let d=new Date(Math.max(a,parse(e.date)));d<=b;d=addDays(d,1))if(occurs(e,d)){const ds=ymd(d);out.push({...e,id:e.id+"@"+ds,date:ds,sid:e.id})}});
+    for(let d=new Date(Math.max(a,parse(e.date)));d<=b;d=addDays(d,1))if(occurs(e,d)){const ds=ymd(d),o={...e,id:e.id+"@"+ds,date:ds,sid:e.id};if(e.edate&&e.edate>e.date)o.edate=ymd(addDays(d,Math.round((parse(e.edate)-parse(e.date))/864e5)));out.push(o)}});
   expCache={key,list:out,arr:S.ev,n:evVer};return out}
-function findEv(id){if(!id)return null;const d=S.ev.find(x=>x.id===id);if(d)return d;const k=id.lastIndexOf("@");if(k>0){const sid=id.slice(0,k),ds=id.slice(k+1),m=S.ev.find(x=>x.id===sid);if(m)return {...m,id,date:ds,sid}}
+function findEv(id){if(!id)return null;const d=S.ev.find(x=>x.id===id);if(d)return d;const k=id.lastIndexOf("@");if(k>0){const sid=id.slice(0,k),ds=id.slice(k+1),m=S.ev.find(x=>x.id===sid);if(m){const o={...m,id,date:ds,sid};if(m.edate&&m.edate>m.date)o.edate=ymd(addDays(parse(ds),Math.round((parse(m.edate)-parse(m.date))/864e5)));return o}}
   try{const x=(expCache&&expCache.list||[]).find(x=>x.id===id);if(x)return x}catch(_){}return null}
 const plain=e=>{const c={...e};delete c.rep;delete c.sid;return c};
 /* Einzelnen Termin einer Serie herauslösen; gibt das neue, echte Objekt + Rückgängig zurück */
@@ -1165,7 +1165,10 @@ const RO=id=>id==="plan"||!!(S.cals.find(c=>c.id===id)||{}).ro;
 const firstRW=()=>(S.cals.find(c=>!RO(c.id)&&c.on)||S.cals.find(c=>!RO(c.id))||S.cals[0]).id;
 const visible=()=>expanded().filter(e=>calOf(e.cal).on);
 function dayEvents(ds){
-  const l=visible().filter(e=>e.date===ds||(e.edate&&e.date<ds&&e.edate>=ds));
+  const l=visible().filter(e=>e.date===ds||(e.edate&&e.date<ds&&e.edate>=ds)).map(e=>{
+    /* Termin mit Uhrzeit über mehrere Tage (z. B. 22:00–02:00): an jedem Tag nur den passenden Teil zeigen */
+    if(e.allDay||!e.edate||e.edate<=e.date)return e;
+    return {...e,start:ds===e.date?e.start:"00:00",end:ds===e.edate?e.end:"23:59",seg:true,full:e}});
   return {all:l.filter(e=>e.allDay),timed:l.filter(e=>!e.allDay).sort((a,b)=>mins(a.start)-mins(b.start)||mins(a.end)-mins(b.end))};
 }
 const styleOf=e=>{const c=calOf(e.cal).color;return `--c:${c};--ci:${ink(c)}`};
@@ -1253,7 +1256,7 @@ function renderGrid(days){
     layout([...timed,...schedTasks(ds)]).forEach(({e,c:ci,n})=>{
       const pos=`top:${hx(mins(e.start))};height:max(16px, calc(var(--hour) * ${((mins(e.end)-mins(e.start))/60).toFixed(4)}));left:calc(${ci*100/n}% + 1px);width:calc(${100/n}% - 2px)`;
       if(e.task) c+=`<div class="tblock${e.done?" done":""}" style="${pos}"><input type="checkbox" data-task="${e.id}" ${e.done?"checked":""} aria-label="${esc(e.title)} erledigt"><span>${ttl(e)}</span></div>`;
-      else c+=`<button class="bar${evc(e)}" style="${styleOf(e)};${pos}" data-ev="${e.id}"${mins(e.end)-mins(e.start)<=75?" data-short":""}>${!RO(e.cal)?`<i class="rsz" data-rsz="${e.id}" aria-hidden="true"></i>`:""}<span class="n">${ttl(e)}</span><span class="t num">${e.start}–${e.end}</span></button>`});
+      else c+=`<button class="bar${evc(e)}" style="${styleOf(e)};${pos}" data-ev="${e.id}"${mins(e.end)-mins(e.start)<=75?" data-short":""}>${!RO(e.cal)&&!e.seg?`<i class="rsz" data-rsz="${e.id}" aria-hidden="true"></i>`:""}<span class="n">${ttl(e)}</span><span class="t num">${e.start}–${e.end}</span></button>`});
     if(ds===td){const now=new Date(),mm=now.getHours()*60+now.getMinutes();if(mm>=H0*60&&mm<=H1*60)c+=`<div class="nowline" style="top:${hx(mm)}"></div>`}
     c+=`</div>`;cols+=c});
   return `<div class="gview"><div class="gbody"><div class="gin">${head}<div class="tgrid${days.length===1?" one":""}${narrow?" many":""}" style="grid-template-columns:${cols0}">${hours}${cols}</div></div></div></div>`;
@@ -1613,8 +1616,8 @@ $("ev-allday").addEventListener("change",syncAllday);
   const DUR=[[15,"15 Min."],[30,"30 Min."],[45,"45 Min."],[60,"1 Std."],[90,"1½ Std."],[120,"2 Std."],[180,"3 Std."],[240,"4 Std."]];
   const sI=$("ev-start"),eI=$("ev-end"),vd=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value");
   let busy=false;
-  const sync=()=>{if(busy)return;const a=mins(sI.value||"09:00"),b=mins(eI.value||"10:00"),d=b-a;
-    $("ev-tstart").textContent=sI.value||"–";$("ev-tend").textContent=eI.value||"–";
+  const sync=()=>{if(busy)return;const a=mins(sI.value||"09:00"),b=mins(eI.value||"10:00"),d=b>a?b-a:b+1440-a;
+    $("ev-tstart").textContent=sI.value||"–";$("ev-tend").textContent=(eI.value||"–")+(b<a?" (+1 Tag)":"");
     $("ev-durs").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.d===d));
     $("ev-hrs").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.h===Math.floor(a/60)));
     $("ev-mins").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.m===a%60))};
@@ -1622,11 +1625,12 @@ $("ev-allday").addEventListener("change",syncAllday);
   $("ev-durs").innerHTML=DUR.map(([d,l])=>`<button type="button" data-d="${d}">${l}</button>`).join("");
   let h="";for(let x=6;x<=23;x++)h+=`<button type="button" data-h="${x}">${x}</button>`;$("ev-hrs").innerHTML=h;
   $("ev-mins").innerHTML=[0,15,30,45].map(m=>`<button type="button" data-m="${m}">:${pad(m)}</button>`).join("");
-  const setStart=a=>{const d=window.KK_dur||Math.max(15,mins(eI.value||"10:00")-mins(sI.value||"09:00"));qTouch();busy=true;sI.value=toMin(a);eI.value=toMin(Math.min(a+d,24*60-1));busy=false;sync();syncAllday()};
+  const curDur=()=>{const a=mins(sI.value||"09:00"),b=mins(eI.value||"10:00");return b>a?b-a:b+1440-a};
+  const setStart=a=>{const d=window.KK_dur||Math.max(15,curDur());qTouch();busy=true;sI.value=toMin(a);eI.value=toMin((a+d)%1440);busy=false;sync();syncAllday()};
   $("ev-tbtn").onclick=()=>{const o=$("ev-tpick").hidden;$("ev-tpick").hidden=!o;$("ev-tbtn").setAttribute("aria-expanded",o)};
   $("ev-hrs").onclick=e=>{const b=e.target.closest("[data-h]");if(!b)return;setStart(+b.dataset.h*60+mins(sI.value||"09:00")%60)};
   $("ev-mins").onclick=e=>{const b=e.target.closest("[data-m]");if(!b)return;setStart(Math.floor(mins(sI.value||"09:00")/60)*60+ +b.dataset.m);$("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false)};
-  $("ev-durs").onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;window.KK_dur=+b.dataset.d;qTouch();eI.value=toMin(Math.min(mins(sI.value||"09:00")+ +b.dataset.d,24*60-1));syncAllday()};
+  $("ev-durs").onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;window.KK_dur=+b.dataset.d;qTouch();eI.value=toMin((mins(sI.value||"09:00")+ +b.dataset.d)%1440);syncAllday()};
   sync();
 }
 /* Überschneidung live anzeigen */
@@ -1653,9 +1657,9 @@ $("ev-del").onclick=function(){
 $("ev-form").addEventListener("submit",ev=>{
   ev.preventDefault();
   const allDay=$("ev-allday").checked,s=$("ev-start").value,e=$("ev-end").value;
-  if(!allDay&&mins(e)<=mins(s)){toast("Das Ende muss nach dem Beginn liegen");return}
+  if(!allDay&&mins(e)===mins(s)){toast("Das Ende muss nach dem Beginn liegen");return}
   const qp=qActive?parseQuick($("ev-title").value):null;
-  const ed=allDay&&$("ev-edate").value>$("ev-date").value?$("ev-edate").value:null;
+  const ed=allDay?($("ev-edate").value>$("ev-date").value?$("ev-edate").value:null):(mins(e)<mins(s)?ymd(addDays(parse($("ev-date").value),1)):null);
   const data={edate:ed,title:(qp&&qp.found.length?qp.title:$("ev-title").value.trim())||"Ohne Titel",cal:$("ev-cal").value,date:$("ev-date").value,allDay,start:allDay?"":s,end:allDay?"":e,loc:$("ev-loc").value.trim(),notes:$("ev-notes").value.trim(),remind:+$("ev-remind").value};
   const rf=$("ev-rep").value,until=$("ev-until").value||null;
   if(editing){const o=findEv(editing);
@@ -1873,7 +1877,9 @@ function moveEvent(e,date,start){
   const dt=detach(e);e=dt.ev;
   const before={date:e.date,start:e.start,end:e.end,edate:e.edate};
   if(e.edate){const sh=Math.round((parse(date)-parse(e.date))/864e5);e.edate=ymd(addDays(parse(e.edate),sh))}
-  if(start!=null&&!e.allDay){const dur=mins(e.end)-mins(e.start);start=Math.min(Math.max(start,0),24*60-15);e.start=toMin(start);e.end=toMin(Math.min(start+dur,24*60-1))}
+  const multi=!e.allDay&&e.edate&&e.edate>e.date;
+  if(start!=null&&!e.allDay){const days=multi?Math.round((parse(e.edate)-parse(e.date))/864e5):0,dur=days*1440+mins(e.end)-mins(e.start);start=Math.min(Math.max(start,0),24*60-15);e.start=toMin(start);
+    const endAbs=start+dur;if(endAbs>=1440){e.end=toMin(endAbs%1440);e.edate=ymd(addDays(parse(date),Math.floor(endAbs/1440)))}else{e.end=toMin(endAbs);delete e.edate}}
   e.date=date;
   if(before.date===e.date&&before.start===e.start&&!dt.undo){render();return}
   save();render();
@@ -1998,6 +2004,10 @@ document.addEventListener("contextmenu",e=>{if(e.target.closest("#view [data-ev]
 /* ---------- Ereignisse ---------- */
 function defaultStart(ds){const n=new Date();return ds===ymd(n)?Math.min((n.getHours()+1)*60,22*60):9*60}
 function newAt(ds,m){openEditor(null,ds);if(m==null)m=defaultStart(ds);$("ev-start").value=toMin(m);$("ev-end").value=toMin(Math.min(m+60,24*60-1))}
+/* Kacheln und Monat: Uhrzeit aus der Höhe auf der Zeitleiste der Kachel/des Tages */
+function lineMin(t,y){const l=t.querySelector(".evlist.tline,.mline"),box=t.closest("[data-r0]");if(!l||!box)return null;
+  const r=l.getBoundingClientRect();if(r.height<20||y<r.top||y>r.bottom)return null;
+  const r0=+box.dataset.r0,r1=+box.dataset.r1,m=r0+(y-r.top)/r.height*(r1-r0);return Math.max(0,Math.min(23*60+30,Math.floor(m/30)*30))}
 function slotMin(col,y){const r=col.getBoundingClientRect();return Math.floor((H0*60+(y-r.top)/hourPxNow()*60)/15)*15}
 /* Aktionen für bestehende Termine */
 let actId=null,pending=null;
@@ -2061,7 +2071,10 @@ function openPeek(el,ev){
   pk.style.setProperty("--c",c.color);pk.style.setProperty("--ci",ink(c.color));
   $("pk-cal").textContent=c.name;$("pk-title").textContent=ev.title||"Ohne Titel";
   const row=(i,t,cls)=>`<div class="pk-row${cls?" "+cls:""}">${IC[i]}<div>${t}</div></div>`;
-  let b=row("time",esc(fmtDay(parse(ev.date)))+"<br>"+(ev.allDay?"ganztägig":esc(ev.start)+" – "+esc(ev.end)+" Uhr"));
+  const md=ev.edate&&ev.edate>ev.date;
+  let b=row("time",ev.allDay?esc(fmtDay(parse(ev.date)))+(md?" – "+esc(fmtDay(parse(ev.edate))):"")+"<br>ganztägig"
+    :md?esc(fmtDay(parse(ev.date)))+", "+esc(ev.start)+" Uhr<br>bis "+esc(fmtDay(parse(ev.edate)))+", "+esc(ev.end)+" Uhr"
+    :esc(fmtDay(parse(ev.date)))+"<br>"+esc(ev.start)+" – "+esc(ev.end)+" Uhr");
   if(ev.sid){const m=S.ev.find(x=>x.id===ev.sid);if(m)b+=row("rep",esc(repText(m)))}
   const MEET=/teams\.(microsoft|live)|zoom\.us|meet\.google|webex/i,links=[...new Set([ev.url,...findLinks(ev.loc),...findLinks(ev.notes)].filter(Boolean))].sort((x,y)=>(x===ev.url?-2:MEET.test(x)?-1:/^mailto:/.test(x)?1:0)-(y===ev.url?-2:MEET.test(y)?-1:/^mailto:/.test(y)?1:0));
   if(links.length){const u=links[0];b=`<button type="button" class="pk-link" data-url="${esc(u)}">${IC.link}<div class="pk-lt"><span>${linkName(u)}</span><small>${esc(u.replace(/^https?:\/\//,""))}</small></div></button>`+b}
@@ -2136,7 +2149,7 @@ document.addEventListener("click",e=>{
   const nw=e.target.closest("[data-new]");if(nw){newAt(nw.dataset.new);return}
   const op=e.target.closest("[data-open]");if(op&&!e.target.closest("input")){cursor=parse(op.dataset.open);setView("day");return}
   if(inView&&!e.target.closest("input,label,button,form,select")){
-    const t=e.target.closest("[data-drop]");if(t){newAt(t.dataset.drop,t.dataset.grid?Math.floor(slotMin(t,e.clientY)/30)*30:null);return}
+    const t=e.target.closest("[data-drop]");if(t){newAt(t.dataset.drop,t.dataset.grid?Math.floor(slotMin(t,e.clientY)/30)*30:lineMin(t,e.clientY));return}
   }
   if(e.target.classList.contains("scrim")) e.target.hidden=true;
 });
