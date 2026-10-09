@@ -2059,10 +2059,11 @@ document.addEventListener("pointerdown",e=>{
   const tl=document.createElement("div");tl.className="ghost-time";document.body.appendChild(tl);rsz.tl=tl;
   try{h.setPointerCapture(e.pointerId)}catch(_){}
 },true);
-function rszMove(x,y){const r=rsz;if(!r.moved&&Math.hypot(x-r.x0,y-r.y0)<7)return;r.moved=true;const hp=hourPxNow(),dm=Math.round(((y-r.y0)/hp*60)/15)*15;
+function rszMove(x,y){const r=rsz;if(r.swipe)return;if(!r.moved&&Math.hypot(x-r.x0,y-r.y0)<7)return;if(!r.moved&&Math.abs(x-r.x0)>Math.abs(y-r.y0)*1.2){r.swipe=true;return}r.moved=true;const hp=hourPxNow(),dm=Math.round(((y-r.y0)/hp*60)/15)*15;
   r.newEnd=Math.min(24*60-1,Math.max(r.startM+15,r.endM+dm));r.bar.style.height=Math.max(16,(r.newEnd-r.startM)/60*hp)+"px";
   r.tl.textContent="bis "+toMin(r.newEnd);r.tl.style.left=(x+14)+"px";r.tl.style.top=(y-34)+"px"}
 function rszEnd(){const r=rsz;rsz=null;r.tl.remove();r.bar.classList.remove("resizing");
+  if(r.swipe){justDragged=true;setTimeout(()=>justDragged=false,350);return}
   if(!r.moved){justDragged=true;setTimeout(()=>justDragged=false,350);setTimeout(()=>{try{openPeek(r.bar,r.o)}catch(err){openActions(r.bar,r.o)}},40);return}
   justDragged=true;setTimeout(()=>justDragged=false,350);
   if(r.newEnd==null||r.newEnd===r.endM){render();return}
@@ -2479,8 +2480,22 @@ $("view").addEventListener("wheel",e=>{if(!e.ctrlKey)return;e.preventDefault();
   wz.z*=Math.exp(-e.deltaY*0.01);wz.y=e.clientY;wz.x=e.clientX;clearTimeout(wz.t);
   if(!wz.raf)wz.raf=requestAnimationFrame(()=>{if(!wz)return;wz.raf=0;zoomTo(wz.z);keepFocus(wz.f,wz.y,wz.x)});
   wz.t=setTimeout(()=>{save();wz=null;zoomedAt=Date.now()},250)},{passive:false});
-$("view").addEventListener("touchend",e=>{if(sx===null)return;const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
-  if(!pinched&&!justDragged&&!document.body.classList.contains("is-dragging")&&Math.abs(dx)>70&&Math.abs(dy)<45)step(dx<0?1:-1);sx=null},{passive:true});
+/* Wischen links/rechts = vor/zurück (Tag, Woche, Monat …). Eigene Erkennung, die auch bei schrägem Wischen,
+   über Terminen und wenn Android die Berührung abbricht (touchcancel) zuverlässig greift. */
+{let w=null;
+  const busy=()=>pinched||!!pinch||(drag&&drag.active)||(sel&&sel.on)||!!placing||document.body.classList.contains("is-dragging")||document.body.classList.contains("selecting");
+  const canScrollX=(el,dir)=>{for(let n=el;n&&n!==document.body;n=n.parentElement){if(n.scrollWidth>n.clientWidth+2){const st=getComputedStyle(n).overflowX;if(st==="auto"||st==="scroll"){if(dir>0&&n.scrollLeft+n.clientWidth<n.scrollWidth-2)return true;if(dir<0&&n.scrollLeft>2)return true}}}return false};
+  document.addEventListener("touchstart",e=>{w=null;if(e.touches.length!==1)return;const t=e.touches[0];if(!e.target.closest||!e.target.closest("#view"))return;
+    w={x0:t.clientX,y0:t.clientY,x:t.clientX,y:t.clientY,t0:Date.now(),el:e.target};
+    /* Wird das Element unterwegs neu gezeichnet, kommt touchend nur noch bei ihm selbst an */
+    e.target.addEventListener("touchend",fin,{passive:true,once:true});e.target.addEventListener("touchcancel",fin,{passive:true,once:true})},{passive:true,capture:true});
+  document.addEventListener("touchmove",e=>{if(!w)return;if(e.touches.length!==1){w=null;return}const t=e.touches[0];w.x=t.clientX;w.y=t.clientY},{passive:true,capture:true});
+  function fin(e){if(!w)return;const z=w;w=null;if(e&&e.changedTouches&&e.changedTouches[0]){z.x=e.changedTouches[0].clientX;z.y=e.changedTouches[0].clientY}
+    const dx=z.x-z.x0,dy=z.y-z.y0;if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.4||Date.now()-z.t0>900||busy())return;
+    const dir=dx<0?1:-1;if(canScrollX(z.el,dir))return;
+    justDragged=true;setTimeout(()=>justDragged=false,350);step(dir)}
+  document.addEventListener("touchend",fin,{passive:true,capture:true});
+  document.addEventListener("touchcancel",fin,{passive:true,capture:true})}
 
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(view==="month")fitMonth();if(view==="tiles"&&tfMode())clampTiles()});
 /* ---------- Handy drehen: Ansicht automatisch wechseln ---------- */

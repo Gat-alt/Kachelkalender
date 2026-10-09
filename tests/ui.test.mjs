@@ -428,6 +428,21 @@ console.log("Querformat, Hell/Dunkel");
   await pg.context().close();
 }
 
+// 13) Wischen: links = weiter, rechts = zurück, in allen Ansichten, auch schräg und über Terminen
+console.log("\nWischen");
+for (const v of VIEWS) {
+  const pg = await fresh(v);
+  const cdp = await pg.context().newCDPSession(pg);
+  const T = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y]) => ({ x, y })) });
+  const swipe = async (x0, x1, y, dy = 0) => { await T("touchStart", [[x0, y]]); for (let i = 1; i <= 8; i++) await T("touchMove", [[x0 + (x1 - x0) * i / 8, y + dy * i / 8]]); await T("touchEnd", []); await pg.waitForTimeout(450); };
+  const cur = () => pg.evaluate(() => document.getElementById("title").textContent + " " + document.getElementById("kw").textContent);
+  const a = await cur(); await swipe(340, 100, 560); const b = await cur(); await swipe(100, 340, 560, 60); const c = await cur();
+  check(`${v}: nach links wischen geht weiter`, a !== b, `${a} → ${b}`);
+  check(`${v}: schräg nach rechts wischen geht zurück`, c === a, `${b} → ${c}`);
+  check(`${v}: keine JS-Fehler`, !pg.errors.length, pg.errors.join(" | "));
+  await pg.context().close();
+}
+
 await browser.close();
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${passed} bestanden, ${failed} fehlgeschlagen`);
