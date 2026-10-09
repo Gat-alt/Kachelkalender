@@ -303,7 +303,71 @@ console.log("Wechseln und Schliessen");
   await pg.context().close();
 }
 
-// 9) Querformat und Farben
+// 9) Jedes Fenster geht mit EINEM Tipp daneben, mit der Zurück-Taste und ohne Nebenwirkung zu
+console.log("Fenster schliessen (ein Tipp daneben, Zurück-Taste)");
+for (const v of ["month", "grid", "tiles"]) {
+  const pg = await fresh(v);
+  const n0 = await pg.evaluate("window._K.S.ev.length");
+  const openers = [
+    ["Seitenleiste", "#menu", () => document.getElementById("side").classList.contains("open") && getComputedStyle(document.getElementById("side")).position === "fixed"],
+    ["Aufgaben", "#bb-tasks", () => !document.getElementById("task-scrim").hidden],
+    ["Suche", "#bb-search", () => !document.getElementById("search-scrim").hidden],
+    ["Einstellungen", "#bb-set", () => !document.getElementById("set-scrim").hidden],
+  ];
+  for (const [name, sel, isOpen] of openers) {
+    for (const how of ["tippen", "zurück"]) {
+      await pg.click(sel); await pg.waitForTimeout(350);
+      if (!(await pg.evaluate(isOpen))) { check(`${v}: ${name} öffnet`, false); continue; }
+      if (how === "tippen") {
+        // Stelle ausserhalb des Fensters suchen
+        const pt = await pg.evaluate(() => { for (const [x, y] of [[395, 600], [395, 300], [200, 30], [395, 120]]) { const e = document.elementFromPoint(x, y); if (e && !e.closest(".sheet,#side,.side")) return [x, y]; } return null; });
+        if (!pt) { check(`${v}: ${name} hat eine freie Stelle zum Schliessen`, false); await closeAll(pg); continue; }
+        await tap(pg, pt[0], pt[1]);
+      } else await pg.evaluate(() => history.back());
+      await pg.waitForTimeout(450);
+      check(`${v}: ${name} schliesst mit ${how === "tippen" ? "einem Tipp daneben" : "der Zurück-Taste"}`, !(await pg.evaluate(isOpen)));
+      const side = [await pg.isVisible("#ev-scrim"), await pg.isVisible("#peek"), (await pg.evaluate("window._K.S.ev.length")) - n0];
+      check(`${v}: …ohne dahinter etwas auszulösen (${name}, ${how})`, !side[0] && !side[1] && side[2] === 0, JSON.stringify(side));
+      await closeAll(pg); await pg.evaluate(() => document.getElementById("side").classList.remove("open")); await pg.waitForTimeout(200);
+    }
+  }
+  // Seitenleiste nach links wischen
+  await pg.click("#menu"); await pg.waitForTimeout(300);
+  await pg.evaluate(() => { const t = document.getElementById("side"); const T = (x) => new Touch({ identifier: 1, target: t, clientX: x, clientY: 400 });
+    t.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, touches: [T(250)], changedTouches: [T(250)] }));
+    t.dispatchEvent(new TouchEvent("touchmove", { bubbles: true, touches: [T(200)], changedTouches: [T(200)] }));
+    t.dispatchEvent(new TouchEvent("touchmove", { bubbles: true, touches: [T(120)], changedTouches: [T(120)] }));
+    t.dispatchEvent(new TouchEvent("touchend", { bubbles: true, touches: [], changedTouches: [T(120)] })); });
+  await pg.waitForTimeout(300);
+  check(`${v}: Seitenleiste schliesst mit Wischen nach links`, !(await pg.evaluate(() => document.getElementById("side").classList.contains("open"))));
+  check(`${v}: keine JS-Fehler`, !pg.errors.length, pg.errors.join(" | "));
+  await pg.context().close();
+}
+
+// 10) Weitere Fenster: Aktionen, Kalender bearbeiten, Tag planen, Editor
+console.log("Weitere Fenster");
+{
+  const pg = await fresh("grid");
+  const n0 = await pg.evaluate("window._K.S.ev.length");
+  const outside = async () => { const pt = await pg.evaluate(() => { for (const [x, y] of [[200, 30], [395, 200], [20, 200]]) { const e = document.elementFromPoint(x, y); if (e && !e.closest(".sheet")) return [x, y]; } return null; }); if (pt) await tap(pg, pt[0], pt[1]); await pg.waitForTimeout(450); return !!pt; };
+  const el = (await pg.$$("#view .col [data-ev]"))[0];
+  await tapEl(pg, el); await pg.click("#pk-more"); await pg.waitForTimeout(350);
+  await outside();
+  check("Aktionen schliessen mit einem Tipp daneben", !(await pg.isVisible("#act-scrim")) && !(await pg.isVisible("#ev-scrim")));
+  await pg.click("#bb-tasks"); await pg.waitForTimeout(300); await pg.click("#plan-btn"); await pg.waitForTimeout(350);
+  const planOpen = await pg.isVisible("#plan-scrim");
+  await outside();
+  check("«Tag planen» schliesst mit einem Tipp daneben", planOpen && !(await pg.isVisible("#plan-scrim")));
+  await closeAll(pg);
+  await pg.click("#fab"); await pg.waitForTimeout(300); await pg.evaluate(() => document.activeElement.blur());
+  await outside();
+  check("Editor schliesst mit einem Tipp daneben", !(await pg.isVisible("#ev-scrim")));
+  check("…und nichts wurde dabei angelegt", (await pg.evaluate("window._K.S.ev.length")) === n0);
+  check("keine JS-Fehler", !pg.errors.length, pg.errors.join(" | "));
+  await pg.context().close();
+}
+
+// 11) Querformat und Farben
 console.log("Querformat, Hell/Dunkel");
 {
   const pg = await fresh("tiles");
