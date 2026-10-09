@@ -367,7 +367,58 @@ console.log("Weitere Fenster");
   await pg.context().close();
 }
 
-// 11) Querformat und Farben
+// 11) Befunde der unabhängigen Prüfung
+console.log("Befunde der unabhängigen Prüfung");
+{
+  const pg = await fresh("grid");
+  // Scroll-Stelle bleibt beim Neuzeichnen
+  const st0 = await pg.evaluate(() => { const g = document.querySelector(".gbody"); g.scrollTop = 0; g.scrollTop = g.scrollHeight; return g.scrollTop; });
+  await pg.evaluate(() => window._K.render()); await pg.waitForTimeout(100);
+  const st1 = await pg.evaluate(() => document.querySelector(".gbody").scrollTop);
+  check("Woche: Scroll-Stelle bleibt beim Neuzeichnen", st0 > 50 && Math.abs(st1 - st0) < 2, st0 + " → " + st1);
+  // Voller Tag: nicht alle Termine schmal
+  await pg.evaluate(() => { const S = window._K.S; for (let i = 0; i < 16; i++) S.ev.push({ id: "z" + i, cal: "privat", title: "Termin " + i, date: "2026-10-06", start: String(6 + i).padStart(2, "0") + ":00", end: String(6 + i).padStart(2, "0") + ":45", allDay: false, loc: "", notes: "" }); S.ev.push({ id: "zz", cal: "privat", title: "Parallel", date: "2026-10-06", start: "08:00", end: "08:30", allDay: false, loc: "", notes: "" }); window._K.save(); window._K.render(); });
+  await pg.waitForTimeout(200);
+  const w = await pg.evaluate(() => [document.querySelector('[data-ev="z0"]').getBoundingClientRect().width, document.querySelector('[data-ev="z2"]').getBoundingClientRect().width, document.querySelector('[data-ev="zz"]').getBoundingClientRect().width]);
+  check("Voller Tag: Einzeltermine bleiben breit, nur Überschneidungen teilen", w[0] > w[1] * 1.6 && Math.abs(w[1] - w[2]) < 3, JSON.stringify(w));
+  // Schnelleingabe
+  const q = await pg.evaluate(() => { const r = {}; for (const t of ["Zahnarzt morgen 14.30", "Kino Fr 20h", "Party Sa 22-2 Uhr", "Lernen morgen 2h"]) { const p = window.KK_parseQuick ? window.KK_parseQuick(t) : null; r[t] = p && [p.start, p.end, p.dur, p.title]; } return r; });
+  check("Schnelleingabe «14.30» ist eine Uhrzeit", q["Zahnarzt morgen 14.30"] && q["Zahnarzt morgen 14.30"][0] === 870, JSON.stringify(q));
+  check("Schnelleingabe «20h» ist 20 Uhr", q["Kino Fr 20h"] && q["Kino Fr 20h"][0] === 1200, JSON.stringify(q["Kino Fr 20h"]));
+  check("Schnelleingabe «22-2 Uhr» über Mitternacht", q["Party Sa 22-2 Uhr"] && q["Party Sa 22-2 Uhr"][0] === 1320 && q["Party Sa 22-2 Uhr"][1] === 120, JSON.stringify(q["Party Sa 22-2 Uhr"]));
+  check("Schnelleingabe «2h» ist eine Dauer", q["Lernen morgen 2h"] && q["Lernen morgen 2h"][2] === 120 && q["Lernen morgen 2h"][0] == null);
+  // .ics: Mo–Fr, Ausnahmen, kein Doppel beim zweiten Import
+  const ics = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:w1\r\nSUMMARY:Werktag\r\nDTSTART:20261005T080000\r\nDTEND:20261005T090000\r\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\r\nEXDATE:20261007T080000\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+  const ir = await pg.evaluate(ics => { const B = window.KK_backup; const a = B.importText(ics, true); const b = B.importText(ics, true); const e = window._K.S.ev.find(x => x.title === "Werktag"); return [a, b, e && e.rep]; }, ics);
+  check(".ics: Mo–Fr-Serie mit Ausnahme", ir[2] && ir[2].f === "wd" && ir[2].ex.includes("2026-10-07"), JSON.stringify(ir[2]));
+  check(".ics: zweiter Import legt keine Doppel an", ir[0] === 1 && ir[1] === 0, JSON.stringify(ir.slice(0, 2)));
+  // Sicherung ohne Einstellungen
+  const bk = await pg.evaluate(() => { const n = window._K.S.ev.length; window.KK_backup.importText(JSON.stringify({ kachelkalender: 1, saved: new Date().toISOString(), data: { ev: [], cals: [{ id: "x", name: "X", color: "#123456", on: true }] } }), false); return [!!window._K.S.set && typeof window._K.S.set.remind !== "undefined", window._K.S.tasks && Array.isArray(window._K.S.tasks)]; });
+  check("Sicherung ohne Einstellungen: App bleibt heil", bk[0] && bk[1], JSON.stringify(bk));
+  check("keine JS-Fehler", !pg.errors.length, pg.errors.join(" | "));
+  await pg.context().close();
+}
+{
+  const pg = await fresh("grid");
+  // Entwurf zurückholen
+  await pg.click("#fab"); await pg.waitForTimeout(300); await pg.type("#ev-title", "Wichtiger Entwurf");
+  await pg.evaluate(() => history.back()); await pg.waitForTimeout(450);
+  check("Entwurf: nach Zurück erscheint «Weiter bearbeiten»", await pg.evaluate(() => [...document.querySelectorAll(".toast button")].some(b => b.textContent.includes("Weiter bearbeiten"))));
+  await pg.evaluate(() => [...document.querySelectorAll(".toast button")].find(b => b.textContent.includes("Weiter bearbeiten")).click()); await pg.waitForTimeout(300);
+  check("…und der Text ist wieder da", (await pg.inputValue("#ev-title")) === "Wichtiger Entwurf");
+  await pg.click("#ev-cancel"); await pg.waitForTimeout(300);
+  // Einplan-Formular behält Eingaben beim Minuten-Takt
+  await pg.click("#bb-tasks"); await pg.waitForTimeout(300);
+  const tid = await pg.evaluate(() => window._K.S.tasks.find(t => !t.done).id);
+  await pg.click(`#task-scrim [data-plan="${tid}"]`); await pg.waitForTimeout(200);
+  await pg.evaluate(id => { document.getElementById("pt-" + id).value = "16:45"; }, tid);
+  await pg.evaluate(() => window._K.render()); await pg.waitForTimeout(150);
+  check("Einplanen: Eingabe bleibt beim Neuzeichnen", (await pg.evaluate(id => document.getElementById("pt-" + id).value, tid)) === "16:45");
+  check("keine JS-Fehler", !pg.errors.length, pg.errors.join(" | "));
+  await pg.context().close();
+}
+
+// 12) Querformat und Farben
 console.log("Querformat, Hell/Dunkel");
 {
   const pg = await fresh("tiles");

@@ -53,10 +53,15 @@ class KachelWidget : AppWidgetProvider() {
                     val now = System.currentTimeMillis()
                     var n = 0
                     var lastDay = ""
+                    val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT)
+                    val cal = java.util.Calendar.getInstance()
+                    val today = fmt.format(cal.time); cal.add(java.util.Calendar.DAY_OF_YEAR, 1); val tomorrow = fmt.format(cal.time)
                     for (i in 0 until arr.length()) {
                         val o = arr.getJSONObject(i)
                         if (o.optLong("end", 0) < now) continue
-                        val day = o.optString("day")
+                        val ds = o.optString("ds")
+                        // «Heute»/«Morgen» jedes Mal neu bestimmen, damit es nach Mitternacht stimmt
+                        val day = if (ds == today) "Heute" else if (ds == tomorrow) "Morgen" else o.optString("label", o.optString("day"))
                         if (day != lastDay) {
                             if (sb.isNotEmpty()) sb.append("\n")
                             val s = sb.length

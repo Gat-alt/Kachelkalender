@@ -54,10 +54,19 @@ class KachelTasksWidget : AppWidgetProvider() {
                     val arr = JSONArray(f.readText())
                     open = arr.length()
                     var lastGroup = ""
+                    val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT)
+                    val cal = java.util.Calendar.getInstance()
+                    val today = fmt.format(cal.time); cal.add(java.util.Calendar.DAY_OF_YEAR, 7); val week = fmt.format(cal.time)
+                    val items = (0 until arr.length()).map { arr.getJSONObject(it) }.map { o ->
+                        val due = o.optString("due")
+                        // Gruppe jedes Mal neu bestimmen, damit sie nach Mitternacht stimmt
+                        val g = if (o.optBoolean("nodue")) 4 else if (due < today) 0 else if (due == today) 1 else if (due <= week) 2 else 3
+                        Pair(g, o)
+                    }.sortedWith(compareBy({ it.first }, { it.second.optString("due") }))
+                    val names = listOf("Überfällig", "Heute", "Diese Woche", "Später", "Ohne Datum")
                     var n = 0
-                    for (i in 0 until arr.length()) {
-                        val o = arr.getJSONObject(i)
-                        val g = o.optString("group")
+                    for ((gi, o) in items) {
+                        val g = names[gi]
                         if (g != lastGroup) {
                             if (sb.isNotEmpty()) sb.append("\n")
                             val s = sb.length

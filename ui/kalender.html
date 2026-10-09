@@ -1178,12 +1178,14 @@ function expanded(){
   expCache={key,list:out,arr:S.ev,n:evVer};return out}
 function findEv(id){if(!id)return null;const d=S.ev.find(x=>x.id===id);if(d)return d;const k=id.lastIndexOf("@");if(k>0){const sid=id.slice(0,k),ds=id.slice(k+1),m=S.ev.find(x=>x.id===sid);if(m){const o={...m,id,date:ds,sid};if(m.edate&&m.edate>m.date)o.edate=ymd(addDays(parse(ds),Math.round((parse(m.edate)-parse(m.date))/864e5)));return o}}
   try{const x=(expCache&&expCache.list||[]).find(x=>x.id===id);if(x)return x}catch(_){}return null}
-const plain=e=>{const c={...e};delete c.rep;delete c.sid;return c};
+/* Kopie eines Termins: ohne Serien- und ohne Abgleich-Kennung, sonst würde beim Hochladen das Original überschrieben */
+const SYNCKEYS=["rep","sid","rh","et","uid","rsig","gid","rcal","rnotes","lock","fromSeries","seg","full"];
+const plain=e=>{const c={...e};SYNCKEYS.forEach(k=>delete c[k]);return c};
 /* Einzelnen Termin einer Serie herauslösen; gibt das neue, echte Objekt + Rückgängig zurück */
 function detach(o){
   if(!o.sid)return {ev:o,undo:null};
   const m=S.ev.find(x=>x.id===o.sid);m.rep.ex=[...(m.rep.ex||[]),o.date];
-  const c={...plain(o),id:uid(),fromSeries:o.sid};S.ev.push(c);
+  const c={...plain(o),id:uid()};S.ev.push(c);
   return {ev:c,undo:()=>{S.ev=S.ev.filter(x=>x.id!==c.id);m.rep.ex=m.rep.ex.filter(x=>x!==o.date)}};
 }
 function removeOcc(o){
@@ -1192,13 +1194,15 @@ function removeOcc(o){
 function removeSeries(o){const m=S.ev.find(x=>x.id===(o.sid||o.id));S.ev=S.ev.filter(x=>x!==m);return()=>S.ev.push(m)}
 const ttl=e=>(e.hl?'<span class="star" aria-label="hervorgehoben">★</span> ':"")+esc(e.title)+(e.sid?' <span class="rp" aria-label="wiederkehrend">↻</span>':"");
 const RO=id=>id==="plan"||!!(S.cals.find(c=>c.id===id)||{}).ro;
+/* Termin nur lesen: Kalender nur lesen oder Einzeltermin einer Serie mit Ausnahmen beim Anbieter */
+const ROe=e=>!!e&&(RO(e.cal)||!!e.lock);
 const firstRW=()=>(S.cals.find(c=>!RO(c.id)&&c.on)||S.cals.find(c=>!RO(c.id))||S.cals[0]).id;
 const visible=()=>expanded().filter(e=>calOf(e.cal).on);
 function dayEvents(ds){
   const l=visible().filter(e=>e.date===ds||(e.edate&&e.date<ds&&e.edate>=ds)).map(e=>{
     /* Termin mit Uhrzeit über mehrere Tage (z. B. 22:00–02:00): an jedem Tag nur den passenden Teil zeigen */
     if(e.allDay||!e.edate||e.edate<=e.date)return e;
-    return {...e,start:ds===e.date?e.start:"00:00",end:ds===e.edate?e.end:"23:59",seg:true,full:e}});
+    return {...e,start:ds===e.date?e.start:"00:00",end:ds===e.edate?e.end:"23:59",seg:true,full:e}}).filter(e=>e.allDay||!e.seg||e.end!=="00:00");
   return {all:l.filter(e=>e.allDay),timed:l.filter(e=>!e.allDay).sort((a,b)=>mins(a.start)-mins(b.start)||mins(a.end)-mins(b.end))};
 }
 const styleOf=e=>{const c=calOf(e.cal).color;return `--c:${c};--ci:${ink(c)}`};
@@ -1252,10 +1256,16 @@ function renderTiles(){
 
 /* ---------- Zeitraster (Tag / Woche) ---------- */
 let H0=7,H1=22;
+/* Spalten nur innerhalb einer Gruppe sich überschneidender Termine: ein voller Tag macht nicht alle Termine schmal */
 function layout(list){
-  const cols=[];const out=[];
-  list.forEach(e=>{const s=mins(e.start);let c=cols.findIndex(end=>end<=s);if(c<0){c=cols.length;cols.push(0)}cols[c]=mins(e.end);out.push({e,c})});
-  return out.map(o=>({...o,n:cols.length}));
+  const out=[];let grp=[],cols=[],gEnd=-1;
+  const flush=()=>{grp.forEach(o=>o.n=cols.length);grp=[];cols=[]};
+  [...list].sort((a,b)=>mins(a.start)-mins(b.start)||mins(b.end)-mins(a.end)).forEach(e=>{
+    const s=mins(e.start),en=Math.max(mins(e.end),s+15);
+    if(s>=gEnd){flush();gEnd=-1}
+    let c=cols.findIndex(end=>end<=s);if(c<0){c=cols.length;cols.push(0)}cols[c]=en;gEnd=Math.max(gEnd,en);
+    const o={e,c,n:1};grp.push(o);out.push(o)});
+  flush();return out;
 }
 const isLand=()=>innerHeight<500&&innerWidth>innerHeight;
 function gridRange(days){
@@ -1286,7 +1296,7 @@ function renderGrid(days){
     layout([...timed,...schedTasks(ds)]).forEach(({e,c:ci,n})=>{
       const pos=`top:${hx(mins(e.start))};height:max(16px, calc(var(--hour) * ${((mins(e.end)-mins(e.start))/60).toFixed(4)}));left:calc(${ci*100/n}% + 1px);width:calc(${100/n}% - 2px)`;
       if(e.task) c+=`<div class="tblock${e.done?" done":""}" style="${pos}"><input type="checkbox" data-task="${e.id}" ${e.done?"checked":""} aria-label="${esc(e.title)} erledigt"><span>${ttl(e)}</span></div>`;
-      else c+=`<button class="bar${evc(e)}" style="${styleOf(e)};${pos}" data-ev="${e.id}"${mins(e.end)-mins(e.start)<=75?" data-short":""}>${!RO(e.cal)&&!e.seg?`<i class="rsz" data-rsz="${e.id}" aria-hidden="true"></i>`:""}<span class="n">${ttl(e)}</span><span class="t num">${e.start}–${e.end}</span></button>`});
+      else c+=`<button class="bar${evc(e)}" style="${styleOf(e)};${pos}" data-ev="${e.id}"${mins(e.end)-mins(e.start)<=75?" data-short":""}>${!ROe(e)&&!e.seg?`<i class="rsz" data-rsz="${e.id}" aria-hidden="true"></i>`:""}<span class="n">${ttl(e)}</span><span class="t num">${e.start}–${e.end}</span></button>`});
     if(ds===td){const now=new Date(),mm=now.getHours()*60+now.getMinutes();if(mm>=H0*60&&mm<=H1*60)c+=`<div class="nowline" style="top:${hx(mm)}"></div>`}
     c+=`</div>`;cols+=c});
   return `<div class="gview"><div class="gbody"><div class="gin">${head}<div class="tgrid${days.length===1?" one":""}${narrow?" many":""}" style="grid-template-columns:${cols0}">${hours}${cols}</div></div></div></div>`;
@@ -1411,7 +1421,10 @@ function renderTaskPop(){
         <select id="pl-${t.id}" aria-label="Dauer">${[15,30,45,60,90,120].map(m=>`<option value="${m}" ${(t.sDur||30)===m?"selected":""}>${m<60?m+" Min.":m/60+" Std."}</option>`).join("")}</select>
         <button class="btn primary">Einplanen</button>${sched?`<button type="button" class="btn" data-unplan="${t.id}">Entfernen</button>`:""}</form>`;
     })});
+  /* Eingaben in offenen Einplan-Formularen beim Neuzeichnen behalten */
+  const keepVals=[...$("task-pop").querySelectorAll(".plan-form input,.plan-form select")].map(x=>[x.id,x.value]),focus=document.activeElement&&document.activeElement.id;
   $("task-pop").innerHTML=html||`<div class="empty">Keine Aufgaben. Leg unten eine an.</div>`;
+  keepVals.forEach(([id,val])=>{const x=id&&document.getElementById(id);if(x)x.value=val});if(focus&&keepVals.some(k=>k[0]===focus)){const x=document.getElementById(focus);if(x)x.focus()}
 }
 $("task-pop").addEventListener("click",e=>{
   const p=e.target.closest("[data-plan]");if(p){const id=p.dataset.plan;planOpen.has(id)?planOpen.delete(id):planOpen.add(id);renderTaskPop();return}
@@ -1482,6 +1495,9 @@ function render(anim){document.documentElement.dataset.v=view;
   const VN={day:"Tag",grid:"Woche",tiles:"Kacheln",month:"Monat"};const ORD=["grid","day","month","tiles","work"],VN2={grid:"Woche",day:"Tag",month:"Monat",tiles:"Kacheln",work:"Mo–Fr"};$("vlbl").textContent=VN2[view];$("vdots").innerHTML=ORD.map(v=>`<i class="${v===view?"on":""}"></i>`).join("");$("today-ico").textContent=new Date().getDate();
   const t=document.getElementById("title"),kw=document.getElementById("kw"),v=document.getElementById("view");
   const m=monday(cursor),so=addDays(m,6);
+  /* Gleiche Ansicht neu zeichnen (Minuten-Takt, Speichern, Abgleich): Scroll-Stelle behalten */
+  const rkey=view+"|"+ymd(view==="month"?new Date(cursor.getFullYear(),cursor.getMonth(),1):view==="day"?cursor:m),keepPos=!anim&&render.key===rkey;
+  const pos=keepPos?{v:[v.scrollTop,v.scrollLeft],s:[...v.querySelectorAll(".gbody,.mwrap")].map(e=>[e.scrollTop,e.scrollLeft])}:null;render.key=rkey;
   if(view==="tiles"||view==="grid"||view==="work"){
     const sh=innerWidth<700;
     t.textContent=m.getMonth()===so.getMonth()?(sh?`${MON[m.getMonth()]}`:`${MON[m.getMonth()]} ${m.getFullYear()}`):(sh?`${MON[m.getMonth()].slice(0,3)}./${MON[so.getMonth()].slice(0,3)}.`:`${MON[m.getMonth()].slice(0,3)}. – ${MON[so.getMonth()].slice(0,3)}. ${so.getFullYear()}`);
@@ -1509,6 +1525,7 @@ function render(anim){document.documentElement.dataset.v=view;
   if(view==="month"){fitMonth();requestAnimationFrame(()=>view==="month"&&fitMonth())}
   if(view==="month"&&(anim||!render.done)&&!isLand()){const w=document.querySelector(".mwrap"),t=w&&w.querySelector(".c.tdy");if(t&&t.offsetTop>w.clientHeight*0.6)w.scrollTop=t.offsetTop-40}
   render.done=true;
+  if(pos){const put=()=>{v.scrollTop=pos.v[0];v.scrollLeft=pos.v[1];v.querySelectorAll(".gbody,.mwrap").forEach((e,i)=>{if(pos.s[i]){e.scrollTop=pos.s[i][0];e.scrollLeft=pos.s[i][1]}})};put();requestAnimationFrame(put)}
   document.querySelectorAll("[data-bb]").forEach(b=>b.classList.toggle("on",false));
 }
 
@@ -1520,7 +1537,7 @@ function openEditor(e,ds){
   const ser=e&&e.sid?S.ev.find(x=>x.id===e.sid):null;
   $("ev-scope").hidden=!ser;$("ev-scope").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.scope==="one"));
   $("ev-rep").value=ser?ser.rep.f:"";$("ev-until").value=ser&&ser.rep.until||"";$("ev-untilw").hidden=true;
-  $("ev-rep").disabled=!!ser;const ro=!!(e&&RO(e.cal));
+  $("ev-rep").disabled=!!ser;const ro=!!(e&&ROe(e));
   $("ev-h").textContent=e?"Bearbeiten":"Neuer Termin";
   $("ev-cal").innerHTML=S.cals.filter(c=>!RO(c.id)).map(c=>`<option value="${c.id}">${esc(c.name)} (${esc(c.src)})</option>`).join("");
   if(ro) $("ev-cal").insertAdjacentHTML("afterbegin",`<option value="${e.cal}">${esc(calOf(e.cal).name)} (nur lesen)</option>`);
@@ -1535,10 +1552,11 @@ function openEditor(e,ds){
   $("ev-remind").value=String(e?e.remind:S.set.remind);if(!$("ev-remind").value)$("ev-remind").value=String(S.set.remind);$("ev-remind2").value=String(e&&e.remind2!=null?e.remind2:-1);
   $("ev-edate").value=e&&e.edate?e.edate:"";qDef=null;qMan=false;window.KK_dur=0;qActive=!e;$("ev-hint").hidden=true;
   syncAllday();
-  const del=$("ev-del");del.hidden=!e;del.classList.remove("armed");del.textContent=ser?"Diesen löschen":"Löschen";
-  ["ev-title","ev-cal","ev-date","ev-allday","ev-start","ev-end","ev-loc"].forEach(id=>$(id).disabled=ro);
+  const del=$("ev-del");del.hidden=!e||ro;del.classList.remove("armed");del.textContent=ser?"Diesen löschen":"Löschen";
+  ["ev-title","ev-cal","ev-date","ev-allday","ev-start","ev-end","ev-loc","ev-notes"].forEach(id=>$(id).disabled=ro);if(ro)$("ev-rep").disabled=true;
+  ["ev-tbtn","ev-tbtn2","ev-adbtn"].forEach(id=>{if($(id))$(id).disabled=ro});$("ev-durs").hidden=ro;
   $("ev-move").hidden=ro;
-  if(ro) $("ev-h").textContent="Stundenplan-Termin";
+  if(ro) $("ev-h").textContent="Nur lesen · Erinnerung anpassbar";
   const opts=S.cals.filter(c=>!RO(c.id)||ro);
   $("ev-cals").innerHTML=opts.map(c=>`<button type="button" class="calchip" data-pickcal="${c.id}" style="--c:${c.color};--ci:${ink(c.color)}" aria-pressed="${c.id===$("ev-cal").value}"><i></i>${esc(c.name)}</button>`).join("");
   const more=!!(e&&(e.loc||e.notes||e.allDay||e.remind2!=null));$("ev-more").hidden=!more;$("ev-morebtn").hidden=more;
@@ -1597,13 +1615,14 @@ function parseQuick(raw){
   if(cut(/\s(ganztägig|ganztags|den ganzen tag)(?=\s)/i,()=>{r.allDay=true;r.found.push("ad")})){}
   // Zeit
   if(!r.allDay){
-    cut(/\s(?:von\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(?:uhr)?\s*(?:[-–]|bis)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(?:uhr)?(?=\s)/i,m=>{const a=hm(m[1],m[2]),b=hm(m[3],m[4]);if(a==null||b==null||b<=a)return false;r.start=a;r.end=b;r.found.push("t")})||
+    cut(/\s(?:von\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(?:uhr)?\s*(?:[-–]|bis)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(?:uhr)?(?=\s)/i,m=>{const a=hm(m[1],m[2]),b=hm(m[3],m[4]);if(a==null||b==null||b===a)return false;r.start=a;r.end=b;r.found.push("t")})||
     cut(/\s(?:um\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*uhr(?=\s)/i,m=>{const a=hm(m[1],m[2]);if(a==null)return false;r.start=a;r.found.push("t")})||
-    cut(/\s(?:um\s+)?(\d{1,2}):(\d{2})(?=\s)/,m=>{const a=hm(m[1],m[2]);if(a==null)return false;r.start=a;r.found.push("t")})||
+    cut(/\s(?:um\s+)?(\d{1,2})[:.](\d{2})(?=\s)/,m=>{if(+m[1]>23)return false;const a=hm(m[1],m[2]);if(a==null)return false;r.start=a;r.found.push("t")})||
+    cut(/\s(?:um\s+)?(1\d|2[0-3])h(?=\s)/i,m=>{r.start=hm(m[1]);r.found.push("t")})||
     cut(/\sum\s+(\d{1,2})(?=\s)/i,m=>{const a=hm(m[1]);if(a==null)return false;r.start=a;r.found.push("t")});
     cut(/\s(\d+(?:[.,]\d+)?)\s*(h|std\.?|stunden?)(?=\s)/i,m=>{r.dur=Math.round(parseFloat(m[1].replace(",","."))*60);r.found.push("dur")})||
     cut(/\s(\d+)\s*(min\.?|minuten)(?=\s)/i,m=>{r.dur=+m[1];r.found.push("dur")});
-    if(r.start!=null&&r.end==null)r.end=Math.min(r.start+(r.dur||60),24*60-1);
+    if(r.start!=null&&r.end==null)r.end=(r.start+(r.dur||60))%1440;
     if(r.wdToday){const n=new Date();if(r.start!=null&&r.start<n.getHours()*60+n.getMinutes())r.date=addDays(r.date,7)}
   }
   // Ort und Kalender
@@ -1620,7 +1639,7 @@ function applyQuick(){
   if(!qDef)qDef={date:$("ev-date").value,start:$("ev-start").value,end:$("ev-end").value,ad:$("ev-allday").checked,ed:$("ev-edate").value,rep:$("ev-rep").value,cal:$("ev-cal").value,loc:$("ev-loc").value};
   const p=parseQuick($("ev-title").value);
   $("ev-date").value=p.date?ymd(p.date):qDef.date;if(qMan){qDef.start=$("ev-start").value;qDef.end=$("ev-end").value}
-  else{$("ev-start").value=p.start!=null?toMin(p.start):qDef.start;$("ev-end").value=p.end!=null?toMin(p.end):qDef.end}
+  else{$("ev-start").value=p.start!=null?toMin(p.start):qDef.start;$("ev-end").value=p.end!=null?toMin(p.end):p.dur?toMin((mins(qDef.start)+p.dur)%1440):qDef.end}
   $("ev-allday").checked=p.allDay!=null?p.allDay:qDef.ad;$("ev-edate").value=p.edate?ymd(p.edate):(p.date?ymd(p.date):qDef.ed);
   $("ev-rep").value=p.rep||qDef.rep;$("ev-untilw").hidden=!$("ev-rep").value;
   const cal=p.cal||qDef.cal;$("ev-cal").value=cal;$("ev-cals").querySelectorAll("[data-pickcal]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.pickcal===cal));
@@ -1689,29 +1708,37 @@ $("ev-cals").addEventListener("click",e=>{const b=e.target.closest("[data-pickca
   $("ev-cals").querySelectorAll("[data-pickcal]").forEach(x=>x.setAttribute("aria-pressed",x===b))});
 $("ev-morebtn").onclick=()=>{$("ev-more").hidden=false;$("ev-morebtn").hidden=true};
 
-$("ev-cancel").onclick=()=>$("ev-scrim").hidden=true;
+$("ev-cancel").onclick=()=>{evSaved=true;$("ev-scrim").hidden=true};
 $("ev-del").onclick=function(){
   if(!this.classList.contains("armed")){this.classList.add("armed");this.textContent="Wirklich löschen?";return}
   const o=findEv(editing),un=(o.sid&&scope==="all")?removeSeries(o):removeOcc(o);save();$("ev-scrim").hidden=true;render();
   toast(o.sid?(scope==="all"?"Serie gelöscht":"Dieser Termin gelöscht"):"Termin gelöscht",o.title,5000,{label:"Rückgängig",fn:()=>{un();save();render()}});
 };
+/* Neuer Termin versehentlich geschlossen (daneben getippt, gewischt, Zurück): Entwurf zurückholen können */
+let evSaved=false;
+new MutationObserver(()=>{const sc=$("ev-scrim");if(!sc.hidden){evSaved=false;return}
+  if(evSaved||editing||!$("ev-title").value.trim())return;
+  const d={title:$("ev-title").value,date:$("ev-date").value,start:$("ev-start").value,end:$("ev-end").value,ad:$("ev-allday").checked,cal:$("ev-cal").value,loc:$("ev-loc").value,notes:$("ev-notes").value,rep:$("ev-rep").value};
+  toast("Entwurf geschlossen",d.title,6000,{label:"Weiter bearbeiten",fn:()=>{openEditor(null,d.date);$("ev-title").value=d.title;$("ev-start").value=d.start;$("ev-end").value=d.end;$("ev-allday").checked=d.ad;$("ev-cal").value=d.cal;
+    $("ev-cals").querySelectorAll("[data-pickcal]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.pickcal===d.cal));$("ev-loc").value=d.loc;$("ev-notes").value=d.notes;$("ev-rep").value=d.rep;qActive=false;syncAllday()}})}).observe($("ev-scrim"),{attributes:true,attributeFilter:["hidden"]});
 $("ev-form").addEventListener("submit",ev=>{
   ev.preventDefault();
-  const allDay=$("ev-allday").checked,s=$("ev-start").value,e=$("ev-end").value;
+  const allDay=$("ev-allday").checked,s=$("ev-start").value;let e=$("ev-end").value;
+  if(!allDay&&e==="00:00"&&s!=="00:00")e="23:59"; // bis Mitternacht: am selben Tag enden
   if(!allDay&&mins(e)===mins(s)){toast("Das Ende muss nach dem Beginn liegen");return}
   const qp=qActive?parseQuick($("ev-title").value):null;
   const ed=allDay?($("ev-edate").value>$("ev-date").value?$("ev-edate").value:null):(mins(e)<mins(s)?ymd(addDays(parse($("ev-date").value),1)):null);
   const data={edate:ed,title:(qp&&qp.found.length?qp.title:$("ev-title").value.trim())||"Ohne Titel",cal:$("ev-cal").value,date:$("ev-date").value,allDay,start:allDay?"":s,end:allDay?"":e,loc:$("ev-loc").value.trim(),notes:$("ev-notes").value.trim(),remind:+$("ev-remind").value,remind2:+$("ev-remind2").value>=0?+$("ev-remind2").value:undefined};
   const rf=$("ev-rep").value,until=$("ev-until").value||null;
-  if(editing){const o=findEv(editing);
+  if(editing){const o=findEv(editing);if(ROe(o))data.remindLocal=true;
     if(o.sid&&scope==="all"){const m=S.ev.find(x=>x.id===o.sid);const shift=Math.round((parse(data.date)-parse(o.date))/864e5);
-      Object.assign(m,{...data,date:ymd(addDays(parse(m.date),shift))});m.rep={...m.rep,f:rf||m.rep.f,until};if(!rf){delete m.rep}}
+      Object.assign(m,{...data,date:ymd(addDays(parse(m.date),shift)),edate:data.edate?ymd(addDays(parse(data.edate),Math.round((parse(m.date)-parse(o.date))/864e5))):null});m.rep={...m.rep,f:rf||m.rep.f,until};if(!rf){delete m.rep}}
     else if(o.sid){const dt=detach(o);Object.assign(dt.ev,data)}
     else{const real=S.ev.find(x=>x.id===o.id);Object.assign(real,data);if(rf)real.rep={f:rf,until,ex:(real.rep&&real.rep.ex)||[]};else delete real.rep}}
   let newId=editing;if(!editing){newId=uid();S.ev.push({id:newId,...data,...(rf?{rep:{f:rf,until,ex:[]}}:{})})}
   if(!data.edate){for(const x of S.ev)if(x.edate===null)delete x.edate}
   const cf=confText(conflicts({...data,id:newId},newId));
-  save();$("ev-scrim").hidden=true;cursor=parse(data.date);render();
+  evSaved=true;save();$("ev-scrim").hidden=true;cursor=parse(data.date);render();
   setTimeout(()=>{const el=document.querySelector(`[data-ev="${newId}"]`)||document.querySelector(`[data-ev^="${newId}"]`);if(!el)return;
     el.scrollIntoView({block:"center",inline:"nearest",behavior:"smooth"});el.classList.add("flash");setTimeout(()=>el.classList.remove("flash"),2200)},380);
   toast("Termin gespeichert",`${calOf(data.cal).name} · ${fmtDay(parse(data.date))}${data.edate?" – "+fmtDay(parse(data.edate)):""}${cf?" · "+cf:""}`,cf?7000:2600);
@@ -1736,9 +1763,11 @@ $("search-input").addEventListener("input",doSearch);
 function renderSettings(){renderSets();
   $("set-rot").value=S.set.rot||"grid";$("set-style").value=S.set.style||"tint";$("set-theme").value=S.set.theme;$("set-font").value=S.set.font;$("set-gaps").checked=S.set.gaps;$("set-kw").checked=S.set.kw;$("set-hol").checked=S.set.hol;$("set-remind").value=String(S.set.remind);
   $("colors").innerHTML=S.cals.map(c=>`<div class="calcolor"><b>${esc(c.name)}</b><div class="swatches">${PALETTE.map(p=>`<button class="sw" style="background:${p}" data-sw="${c.id}" data-color="${p}" aria-label="Farbe ${p} für ${esc(c.name)}" aria-pressed="${p===c.color}"></button>`).join("")}</div></div>`).join("");
-  const acc=[["Infomaniak (Privat)","CalDAV mit App-Passwort","ok","Bereit zum Verbinden"],["ZHAW Stundenplan","Abo-Link von stundenplan.zhaw.ch","ok","Bereit zum Verbinden"],["Arbeit (Outlook)","Eigener Microsoft-Schlüssel nötig","wait","Einrichtung nötig"],["ZHAW (Outlook)","Freigabe der ZHAW nötig","wait","Wartet auf ZHAW"]];
+  /* Konten: die echten verbundenen Kalender (ohne Zugangsdaten) */
+  const acc=S.cals.filter(c=>c.type&&c.type!=="local").map(c=>[c.name,c.src||"",c.ro?"wait":"ok",c.ro?"nur lesen":"verbunden"]);
+  if(!acc.length)acc.push(["Noch keine Konten","Über «+ Kalender hinzufügen» verbindest du Infomaniak, Outlook oder einen Abo-Link.","wait","–"]);
   renderTodoist();
-  $("accounts").innerHTML=acc.map(a=>`<div class="acc"><span><b>${a[0]}</b><br><small style="color:var(--muted)">${a[1]}</small></span><span class="pill ${a[2]}">${a[3]}</span></div>`).join("");
+  $("accounts").innerHTML=acc.map(a=>`<div class="acc"><span><b>${esc(a[0])}</b><br><small style="color:var(--muted)">${esc(a[1])}</small></span><span class="pill ${a[2]}">${a[3]}</span></div>`).join("");
 }
 
 /* ---------- Kalender-Leiste & Sets ---------- */
@@ -2026,7 +2055,7 @@ document.addEventListener("pointerdown",e=>{
   const b=e.target.closest("#view [data-ev]");if(!b)return;
   const ev=findEv(b.dataset.ev);if(!ev)return;
   drag={src:b,ev,x0:e.clientX,y0:e.clientY,touch:e.pointerType!=="mouse",active:false};
-  if(drag.touch)drag.timer=setTimeout(()=>{if(drag&&!drag.active){if(RO(ev.cal)){toast("Nur-lesen-Kalender",calOf(ev.cal).name+": Termine lassen sich nicht verschieben.");drag=null;return}startDrag()}},380);
+  if(drag.touch)drag.timer=setTimeout(()=>{if(drag&&!drag.active){if(ROe(ev)){toast("Nur-lesen-Kalender",calOf(ev.cal).name+": Termine lassen sich nicht verschieben.");drag=null;return}startDrag()}},380);
 });
 document.addEventListener("pointermove",e=>{
   if(!drag)return;
@@ -2056,7 +2085,7 @@ let actId=null,pending=null;
 function openActions(el,ev){
   el.classList.remove("wiggle");void el.offsetWidth;el.classList.add("wiggle");
   setTimeout(()=>{
-    actId=ev.id;const c=calOf(ev.cal),ro=RO(ev.cal);
+    actId=ev.id;const c=calOf(ev.cal),ro=ROe(ev);
     $("act-dot").style.background=c.color;const sh=$("act-scrim").querySelector(".sheet");sh.style.setProperty("--c",c.color);sh.style.setProperty("--ci",ink(c.color));$("act-cal").textContent=c.name;$("act-title").textContent=ev.title;
     $("act-sub").textContent=`${fmtDay(parse(ev.date))}${ev.allDay?" · ganztägig":`, ${ev.start}–${ev.end}`}${ev.loc?" · "+ev.loc:""}`;
     document.querySelectorAll("#act-scrim [data-act]").forEach(b=>b.disabled=ro&&!["copy","edit","hl"].includes(b.dataset.act));
@@ -2125,9 +2154,12 @@ function fromICS(text){
         if(!s.t){ev.allDay=true;ev.start="";ev.end="";if(e&&e.d>s.d){const ed=ymd(addDays(parse(e.d),-1));if(ed>s.d)ev.edate=ed}}
         else{ev.allDay=false;ev.start=s.t;ev.end=e&&e.t?e.t:toMin(Math.min(mins(s.t)+60,24*60-1));if(e&&e.d>s.d){if(e.t==="00:00"&&ymd(addDays(parse(s.d),1))===e.d)ev.end="23:59";else ev.edate=e.d}
           if(!ev.edate&&mins(ev.end)<=mins(ev.start))ev.end=toMin(Math.min(mins(ev.start)+15,24*60-1))}
-        const r=/FREQ=(\w+)(?:.*INTERVAL=(\d+))?/.exec(cur.RRULE||"");if(r){const f={DAILY:"d",WEEKLY:+r[2]===2?"w2":"w",MONTHLY:"m",YEARLY:"y"}[r[1]];const u=/UNTIL=(\d{8})/.exec(cur.RRULE);if(f)ev.rep={f,until:u?`${u[1].slice(0,4)}-${u[1].slice(4,6)}-${u[1].slice(6)}`:null,ex:[]}}
+        if(cur.UID)ev.iuid=cur.UID;
+        const r=/FREQ=(\w+)(?:.*INTERVAL=(\d+))?/.exec(cur.RRULE||"");if(r){const wd=/BYDAY=MO,TU,WE,TH,FR(?![,A-Z])/.test(cur.RRULE),f=wd&&r[1]==="WEEKLY"?"wd":{DAILY:"d",WEEKLY:+r[2]===2?"w2":"w",MONTHLY:"m",YEARLY:"y"}[r[1]];const u=/UNTIL=(\d{8})/.exec(cur.RRULE);if(f)ev.rep={f,until:u?`${u[1].slice(0,4)}-${u[1].slice(4,6)}-${u[1].slice(6)}`:null,ex:(cur.EXL||[]).map(v=>{const m=/(\d{4})(\d{2})(\d{2})/.exec(v);return m?`${m[1]}-${m[2]}-${m[3]}`:null}).filter(Boolean)}}
         out.push(ev)}cur=null;continue}
-    if(!cur||inAlarm)continue;const i=l.indexOf(":");if(i<0)continue;const k=l.slice(0,i).split(";")[0].toUpperCase();if(!(k in cur))cur[k]=l.slice(i+1)}
+    if(!cur||inAlarm)continue;const i=l.indexOf(":");if(i<0)continue;const k=l.slice(0,i).split(";")[0].toUpperCase();
+    if(k==="EXDATE"){(cur.EXL=cur.EXL||[]).push(...l.slice(i+1).split(","));continue}
+    if(!(k in cur))cur[k]=l.slice(i+1)}
   return out}
 function bkInfo(){try{const t=localStorage.getItem(KEY+"-bk");$("bk-last").textContent=t?"Letzte Sicherung: "+new Date(t).toLocaleDateString("de-CH")+" "+new Date(t).toLocaleTimeString("de-CH",{hour:"2-digit",minute:"2-digit"}):"Noch keine Sicherung gespeichert."}catch(e){}}
 $("bk-save").onclick=async()=>{if(await saveFile(`kachelkalender-sicherung-${stamp()}.json`,backupJSON(),"application/json")){try{localStorage.setItem(KEY+"-bk",new Date().toISOString())}catch(e){}bkInfo();toast("Sicherung gespeichert",`${S.ev.length} Termine, ${(S.tasks||[]).length} Aufgaben`)}};
@@ -2139,15 +2171,20 @@ $("bk-file").addEventListener("change",async e=>{const f=e.target.files&&e.targe
 function importText(text,isIcs){
   if(isIcs||/BEGIN:VCALENDAR/.test(text)){const l=fromICS(text);if(!l.length){toast("Keine Termine gefunden","Ist das eine .ics-Datei?",5000);return}
     const cal=S.cals.find(c=>c.id==="privat"&&!RO(c.id))?"privat":firstRW();l.forEach(x=>x.cal=cal);
-    const ids=new Set(l.map(x=>x.id));S.ev.push(...l);save();render();
-    toast(l.length+" Termine importiert","in "+calOf(cal).name,6000,{label:"Rückgängig",fn:()=>{S.ev=S.ev.filter(x=>!ids.has(x.id));save();render()}});return l.length}
+    const have=new Set(S.ev.map(x=>x.iuid||x.uid).filter(Boolean)),key=x=>[x.title,x.date,x.start||""].join("|"),haveK=new Set(S.ev.map(key));
+    const add=l.filter(x=>!(x.iuid&&have.has(x.iuid))&&!haveK.has(key(x))),skip=l.length-add.length;
+    if(!add.length){toast("Schon vorhanden","Alle "+l.length+" Termine sind bereits im Kalender.",5000);return 0}
+    const ids=new Set(add.map(x=>x.id));S.ev.push(...add);save();render();
+    toast(add.length+" Termine importiert","in "+calOf(cal).name+(skip?` · ${skip} schon vorhanden`:""),6000,{label:"Rückgängig",fn:()=>{S.ev=S.ev.filter(x=>!ids.has(x.id));save();render()}});return add.length}
   let j;try{j=JSON.parse(text)}catch(e){toast("Datei nicht lesbar","Bitte eine Kachelkalender-Sicherung (.json) wählen",5000);return}
   if(!j||!j.kachelkalender||!j.data||!Array.isArray(j.data.ev)){toast("Keine Kachelkalender-Sicherung",null,5000);return}
   const before=JSON.stringify(S),keep=new Map(S.cals.filter(c=>c.acct).map(c=>[c.id,c]));
-  const d=j.data;d.cals=(d.cals||[]).map(c=>keep.has(c.id)?{...c,acct:keep.get(c.id).acct}:c);
+  const d=j.data;if(!Array.isArray(d.cals)||!d.cals.length){toast("Sicherung unvollständig","Es fehlen die Kalender – nichts geändert.",6000);return}
+  d.set={...S.set,...(d.set||{})};d.tasks=Array.isArray(d.tasks)?d.tasks:[];d.sets=Array.isArray(d.sets)?d.sets:(S.sets||[]);
+  d.cals=d.cals.map(c=>keep.has(c.id)?{...c,acct:keep.get(c.id).acct}:c);
   Object.keys(S).forEach(k=>delete S[k]);Object.assign(S,d);save();expCache=null;render();
   toast("Sicherung geladen",`${S.ev.length} Termine vom ${new Date(j.saved).toLocaleDateString("de-CH")}`,8000,{label:"Rückgängig",fn:()=>{const o=JSON.parse(before);Object.keys(S).forEach(k=>delete S[k]);Object.assign(S,o);save();expCache=null;render()}});return S.ev.length}
-window.KK_backup={backupJSON,toICS,fromICS,importText};
+window.KK_backup={backupJSON,toICS,fromICS,importText};window.KK_parseQuick=parseQuick;
 bkInfo();
 /* ---------- Fenster schnell schliessen: Zurück-Taste (Android) und nach unten wischen ---------- */
 (function(){
@@ -2163,7 +2200,7 @@ bkInfo();
     const l=wins();if(!l.length){depth=0;return}depth=Math.max(0,depth-1);
     const top=l.includes($("peek"))?$("peek"):l[l.length-1];
     if(top.id==="side"){top.classList.remove("open");return}
-    if(top.id==="peek")closePeek();else if(top.id==="ev-scrim"&&$("ev-cancel"))$("ev-cancel").click();else top.hidden=true});
+    if(top.id==="peek")closePeek();else top.hidden=true});
   /* Nach unten wischen am Kopf eines Fensters (oder wenn ganz oben) schliesst es */
   let sw=null;
   document.addEventListener("touchstart",e=>{if(e.touches.length!==1)return;const sh=e.target.closest(".scrim.bottom .sheet,#peek");if(!sh)return;
@@ -2171,7 +2208,7 @@ bkInfo();
     const sc=e.target.closest(".sheet,#pk-body");sw={sh,y0:e.touches[0].clientY,top:!sc||sc.scrollTop<=0,dy:0}},{passive:true});
   document.addEventListener("touchmove",e=>{if(!sw)return;sw.dy=e.touches[0].clientY-sw.y0},{passive:true});
   document.addEventListener("touchend",()=>{if(!sw)return;const s=sw;sw=null;if(!s.top||s.dy<110)return;
-    if(s.sh.id==="peek"){closePeek();return}const sc=s.sh.closest(".scrim");if(sc&&!sc.hidden){if(sc.id==="ev-scrim"&&$("ev-cancel"))$("ev-cancel").click();else sc.hidden=true}});
+    if(s.sh.id==="peek"){closePeek();return}const sc=s.sh.closest(".scrim");if(sc&&!sc.hidden)sc.hidden=true});
 })();
 /* Links in Terminen erkennen und öffnen */
 const LINK_RE=/\b(?:https?:\/\/|www\.)[^\s<>"']+|\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/gi;
@@ -2208,7 +2245,7 @@ function peekTarget(r){
 }
 function setBox(pk,b){pk.style.left=b.l+"px";pk.style.top=b.t+"px";pk.style.width=b.w+"px";pk.style.height=b.h+"px"}
 function openPeek(el,ev){
-  const c=calOf(ev.cal),ro=RO(ev.cal),pk=$("peek");peekId=ev.id;peekAt=Date.now();
+  const c=calOf(ev.cal),ro=ROe(ev),pk=$("peek");peekId=ev.id;peekAt=Date.now();
   pk.style.setProperty("--c",c.color);pk.style.setProperty("--ci",ink(c.color));
   $("pk-cal").textContent=c.name;$("pk-title").textContent=ev.title||"Ohne Titel";
   const row=(i,t,cls)=>`<div class="pk-row${cls?" "+cls:""}">${IC[i]}<div>${t}</div></div>`;
@@ -2340,7 +2377,7 @@ $("fs-btn").onclick=async()=>{
     if(document.fullscreenElement){await document.exitFullscreen();return}
     await document.documentElement.requestFullscreen({navigationUI:"hide"});
     try{await screen.orientation.lock("landscape")}catch(e){}
-  }catch(e){toast("Vollbild geht in der Claude-App nicht","Öffne den Kalender-Link in Chrome, dort klappt es.",6000)}
+  }catch(e){toast("Vollbild geht hier nicht","Dieses Gerät erlaubt kein Vollbild für den Kalender.",5000)}
 };
 $("tfit").onclick=()=>{S.set.tfit=(tfMode()+1)%3;save();render("f");$("view").scrollTop=0;const tb=document.querySelector(".topbar");if(tb)tb.style.marginTop="0px"};
 $("fab").onclick=()=>newAt(view==="day"?ymd(cursor):ymd(new Date()));

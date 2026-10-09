@@ -51,7 +51,8 @@ async function dav(method, url, acct, body, depth, extra) {
   let r;
   try { r = await hfetch(url, { method, headers: h, body }); }
   catch (e) { throw new Error("Keine Verbindung zum Server (" + new URL(url).host + ")."); }
-  if (r.status === 401 || r.status === 403) throw new Error("Benutzername oder App-Passwort stimmt nicht.");
+  if (r.status === 401) throw new Error("Benutzername oder App-Passwort stimmt nicht.");
+  if (r.status === 403) throw new Error("Keine Berechtigung für diesen Kalender (nur lesen?).");
   if (r.status === 412) { const err = new Error("Konflikt"); err.conflict = true; throw err; }
   if (r.status >= 400 && !(method === "DELETE" && r.status === 404)) throw new Error("Der Server meldet Fehler " + r.status + ".");
   return { status: r.status, text: await r.text(), url: r.url || url, etag: r.headers.get("etag") };
@@ -311,7 +312,8 @@ window.KK_connect = async ({ type, name, color, f }) => {
 const win = () => ({ a: K.addDays(new Date(), -120), b: K.addDays(new Date(), 400) });
 function keepLocal(oldList, fresh) { // Hervorhebungen und zweite Erinnerung bleiben erhalten
   const hl = new Set(oldList.filter(e => e.hl).map(e => e.id)), r2 = new Map(oldList.filter(e => e.remind2 != null).map(e => [e.id, e.remind2]));
-  fresh.forEach(e => { if (hl.has(e.id)) e.hl = true; if (r2.has(e.id)) e.remind2 = r2.get(e.id); });
+  const rl = new Map(oldList.filter(e => e.remindLocal).map(e => [e.id, e.remind])); // selbst gesetzte Erinnerung bei Nur-lesen-Terminen
+  fresh.forEach(e => { if (hl.has(e.id)) e.hl = true; if (r2.has(e.id)) e.remind2 = r2.get(e.id); if (rl.has(e.id)) { e.remind = rl.get(e.id); e.remindLocal = true; } });
 }
 async function pullIcs(cal, first) {
   let r;
@@ -338,7 +340,8 @@ async function pullDav(cal) {
     groupByUid(parseICS(data)).forEach(g => toEvents(g, cal, { rh: href, et: etag, rcal: cal.id }, w).forEach(e => { e.rsig = sig(e); fresh.push(e); }));
   });
   const mine = S.ev.filter(e => e.cal === cal.id || e.rcal === cal.id);
-  const dirty = mine.filter(e => !e.rh || e.rsig !== sig(e));          // lokale Änderungen, die noch hochgeladen werden
+  // lokale Änderungen, die noch hochgeladen werden (bei Nur-lesen-Kalendern und gesperrten Einzelterminen gilt immer der Server)
+  const dirty = cal.ro ? [] : mine.filter(e => !e.lock && (!e.rh || e.rsig !== sig(e)));
   const dirtyHref = new Set(dirty.map(e => e.rh).filter(Boolean));
   const keep = fresh.filter(e => !dirtyHref.has(e.rh));
   keepLocal(mine, keep);
@@ -346,7 +349,14 @@ async function pullDav(cal) {
   cal.known = [...seen];
 }
 async function pushDav() {
-  const S = K.S;
+  const S = K.S, errs = [];
+  // in einen Kalender ohne Konto verschoben (z. B. «nur auf diesem Gerät»): beim alten Anbieter löschen
+  for (const e of S.ev.filter(x => x.rh && x.rcal && x.rcal !== x.cal && !x.gid)) {
+    const old = S.cals.find(c => c.id === e.rcal), now = S.cals.find(c => c.id === e.cal);
+    if (!old || !old.acct || old.type === "ms" || (now && now.acct && now.type !== "ms")) continue;
+    try { await dav("DELETE", e.rh, old.acct, null, null, e.et ? { "If-Match": e.et } : {}); } catch (err) { if (!err.conflict) { errs.push(err); continue; } }
+    old.known = (old.known || []).filter(h => h !== e.rh); delete e.rh; delete e.et; delete e.rcal; delete e.rsig;
+  }
   for (const cal of S.cals.filter(c => c.acct && !c.ro && c.type !== "ms")) {
     const known = new Set(cal.known || []), alive = new Set();
     for (const e of S.ev.filter(x => x.cal === cal.id && !x.lock)) {
@@ -358,20 +368,23 @@ async function pushDav() {
       const href = e.rh || (cal.url.replace(/\/?$/, "/") + encodeURIComponent((e.uid || e.id + "@kachelkalender").replace(/[^\w@.-]/g, "_")) + ".ics");
       const hdr = { "Content-Type": "text/calendar; charset=utf-8" };
       if (e.rh && e.et) hdr["If-Match"] = e.et; else if (!e.rh) hdr["If-None-Match"] = "*";
+      if (!e.uid) e.uid = e.id + "@kachelkalender";
+      const s0 = sig(e), body = buildICS(e); // Stand vor dem Hochladen: Änderungen währenddessen gehen beim nächsten Mal mit
       try {
-        const r = await dav("PUT", href, cal.acct, buildICS(e), null, hdr);
-        if (!e.uid) e.uid = e.id + "@kachelkalender";
-        e.rh = href; e.et = r.etag || ""; e.rcal = cal.id; e.rsig = sig(e); alive.add(href);
+        const r = await dav("PUT", href, cal.acct, body, null, hdr);
+        e.rh = href; e.et = r.etag || ""; e.rcal = cal.id; e.rsig = s0; alive.add(href);
       } catch (err) {
-        if (err.conflict) { e.rsig = sig(e); K.toast("Termin wurde woanders geändert", e.title + ": die Version vom Server gilt"); }
-        else throw err;
+        if (err.conflict) { e.rsig = s0; K.toast("Termin wurde woanders geändert", e.title + ": die Version vom Server gilt"); }
+        else { errs.push(err); if (e.rh) alive.add(e.rh); } // einzelner Fehler: mit den übrigen Terminen weitermachen
       }
     }
     // lokal gelöschte Termine auch beim Anbieter löschen
-    const still = new Set(S.ev.filter(x => x.rh).map(x => x.rh));
-    for (const h of known) if (!still.has(h)) { await dav("DELETE", h, cal.acct, null, null, {}); }
-    cal.known = [...new Set([...alive, ...[...known].filter(h => still.has(h))])];
+    const still = new Set(S.ev.filter(x => x.rh).map(x => x.rh)), gone = new Set();
+    for (const h of known) if (!still.has(h)) { try { await dav("DELETE", h, cal.acct, null, null, {}); gone.add(h); } catch (err) { errs.push(err); } }
+    // bekannt bleiben: hochgeladene, weiterhin vorhandene und noch nicht gelöschte (nächster Versuch)
+    cal.known = [...new Set([...alive, ...[...known].filter(h => still.has(h) || !gone.has(h))])];
   }
+  if (errs.length) throw errs[0];
 }
 /* ---------- Microsoft 365 / Outlook (Microsoft Graph) ----------
    Anmeldung mit Code (Device Code Flow): Die App zeigt einen Code, du meldest dich im Browser bei Microsoft an.
@@ -537,7 +550,7 @@ function msBody(e, full) {
   return b;
 }
 async function pushMs() {
-  const S = K.S, again = [];
+  const S = K.S, again = [], errs = [];
   for (const cal of S.cals.filter(c => c.type === "ms" && c.acct && !c.ro)) {
     const known = new Set(cal.known || []), alive = new Set();
     for (const e of S.ev.filter(x => x.cal === cal.id && !x.lock)) {
@@ -546,17 +559,22 @@ async function pushMs() {
         const old = S.cals.find(c => c.id === e.rcal); if (old && old.acct && old.type !== "ms") { try { await dav("DELETE", e.rh, old.acct, null, null, {}); } catch (x) {} }
         delete e.rh; delete e.et;
       }
-      if (e.gid && e.rcal === cal.id) await graph(cal.acct, "PATCH", "/me/events/" + encodeURIComponent(e.gid), msBody(e, false));
-      else { const j = await graph(cal.acct, "POST", `/me/calendars/${encodeURIComponent(cal.gcal)}/events`, msBody(e, true)); e.gid = j.id; }
+      const s0 = sig(e), n0 = e.notes;
+      try {
+        if (e.gid && e.rcal === cal.id) await graph(cal.acct, "PATCH", "/me/events/" + encodeURIComponent(e.gid), msBody(e, false));
+        else { const j = await graph(cal.acct, "POST", `/me/calendars/${encodeURIComponent(cal.gcal)}/events`, msBody(e, true)); e.gid = j.id; }
+      } catch (err) { errs.push(err); if (e.gid) alive.add(e.gid); continue; } // einzelner Fehler: weitermachen
       if (e.rep) again.push(cal);
-      e.rcal = cal.id; e.rnotes = e.notes; e.rsig = sig(e); alive.add(e.gid);
+      e.rcal = cal.id; e.rnotes = n0; e.rsig = s0; alive.add(e.gid);
     }
     // lokal gelöschte oder weggezogene Termine auch in Outlook löschen
     const still = new Set(S.ev.filter(x => x.cal === cal.id && x.gid).map(x => x.gid));
-    for (const g of known) if (!still.has(g)) await graph(cal.acct, "DELETE", "/me/events/" + encodeURIComponent(g));
-    cal.known = [...new Set([...alive, ...[...known].filter(g => still.has(g))])];
+    const gone = new Set();
+    for (const g of known) if (!still.has(g)) { try { await graph(cal.acct, "DELETE", "/me/events/" + encodeURIComponent(g)); gone.add(g); } catch (err) { if (/404/.test(err.message)) gone.add(g); else errs.push(err); } }
+    cal.known = [...new Set([...alive, ...[...known].filter(g => still.has(g) || !gone.has(g))])];
   }
   for (const cal of new Set(again)) await pullMs(cal); // Serien: einzelne Termine von Outlook holen
+  if (errs.length) throw errs[0];
 }
 
 function forget() { // Zugangsdaten entfernter Kalender löschen
@@ -584,7 +602,8 @@ async function syncAll(manual) {
     const S = K.S, errs = [];
     try { if (S.cals.some(c => c.acct && !c.ro && c.type !== "ms")) await pushDav(); } catch (e) { errs.push(e.message); }
     try { if (S.cals.some(c => c.type === "ms" && !c.ro)) await pushMs(); } catch (e) { errs.push(e.message); }
-    try { await pushTodoist(); await pullTodoist(); } catch (e) { errs.push(e.message); }
+    try { await pushTodoist(); } catch (e) { errs.push(e.message); }
+    try { await pullTodoist(); } catch (e) { errs.push(e.message); }
     for (const cal of S.cals) {
       try { if (cal.type === "ics" && cal.url) await pullIcs(cal); else if (cal.type === "ms" && cal.acct) await pullMs(cal); else if (cal.acct) await pullDav(cal); }
       catch (e) { errs.push(cal.name + ": " + e.message); }
@@ -641,8 +660,10 @@ async function pushTodoist() {
     const r = await td("POST", "/tasks", b);
     if (r && r.id) { const n = tdToTask(r); Object.keys(t).forEach(k => delete t[k]); Object.assign(t, n); }
   }
+  const errs = [];
   for (const t of S.tasks.filter(t => t.src === "todoist" && t.tsig !== tdSig(t))) {
-    const prev = JSON.parse(t.tsig || "[]");
+    const prev = JSON.parse(t.tsig || "[]"), s0 = tdSig(t);
+    try {
     if (t.done && !prev[1]) { await td("POST", `/tasks/${t.tid}/close`); t.doneAt = K.ymd(new Date()); }
     else if (!t.done && prev[1]) await td("POST", `/tasks/${t.tid}/reopen`);
     if (!t.done) {
@@ -655,8 +676,14 @@ async function pushTodoist() {
       }
       if (Object.keys(b).length) await td("POST", `/tasks/${t.tid}`, b);
     }
-    t.tsig = tdSig(t);
+    t.tsig = s0;
+    } catch (err) {
+      if (/Fehler 404/.test(err.message)) { t.gone = true; continue; } // in Todoist gelöscht: hier entfernen
+      errs.push(err);
+    }
   }
+  if (S.tasks.some(t => t.gone)) S.tasks = S.tasks.filter(t => !t.gone);
+  if (errs.length) throw errs[0];
 }
 window.KK_todoist = {
   connected: () => !!tdTok(),
@@ -709,7 +736,7 @@ async function scheduleReminders() {
   remT = setTimeout(async () => {
     try {
       await T.notification.cancelAll();
-      upcoming(24 * 14).slice(0, 60).forEach((x, i) => {
+      upcoming(24 * 14).slice(0, 200).forEach((x, i) => {
         if (x.at <= Date.now()) return;
         T.notification.sendNotification({ id: 1000 + i, title: x.e.title, body: body(x), schedule: { at: { date: new Date(x.at), repeating: false, allowWhileIdle: true }, interval: undefined, every: undefined } });
       });
@@ -728,7 +755,7 @@ async function writeWidget() {
       K.visible().filter(e => e.date === ds || (e.edate && e.date < ds && e.edate >= ds)).forEach(e => {
         const end = K.parse(e.edate && e.edate > e.date ? e.edate : e.date); if (e.allDay) end.setHours(23, 59); else { const [h, m] = e.end.split(":").map(Number); end.setHours(h, m); }
         if (end.getTime() < now) return;
-        list.push({ day: ds === today ? "Heute" : ds === tom ? "Morgen" : `${WD[d.getDay()]}, ${d.getDate()}. ${MO[d.getMonth()]}`, ds, time: e.allDay ? "ganztägig" : (e.date < ds ? "00:00" : e.start), title: e.title, color: K.calOf(e.cal).color, end: end.getTime() });
+        list.push({ day: ds === today ? "Heute" : ds === tom ? "Morgen" : `${WD[d.getDay()]}, ${d.getDate()}. ${MO[d.getMonth()]}`, label: `${WD[d.getDay()]}, ${d.getDate()}. ${MO[d.getMonth()]}`, ds, time: e.allDay ? "ganztägig" : (e.date < ds ? "00:00" : e.start), title: e.title, color: K.calOf(e.cal).color, end: end.getTime() });
       });
     }
     list.sort((a, b) => a.ds.localeCompare(b.ds) || (a.time === "ganztägig" ? -1 : b.time === "ganztägig" ? 1 : a.time.localeCompare(b.time)));
@@ -739,7 +766,7 @@ async function writeWidget() {
     const tasks = (K.S.tasks || []).filter(t => !t.done).map(t => {
       const g = grp(t), d = K.parse(t.due);
       const meta = t.sDate && t.sStart ? (t.sDate === today ? t.sStart : `${WD[K.parse(t.sDate).getDay()]} ${t.sStart}`) : (g === 2 || g === 3 || g === 0) ? `${WD[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.` : "";
-      return { group: G[g], g, due: t.due, title: t.title, meta, todoist: t.src === "todoist" };
+      return { group: G[g], g, due: t.due, nodue: !!t.nodue, title: t.title, meta, todoist: t.src === "todoist" };
     }).sort((a, b) => a.g - b.g || a.due.localeCompare(b.due) || a.title.localeCompare(b.title));
     await T.core.invoke("widget_data", { json: JSON.stringify(tasks.slice(0, 60)), name: "tasks" });
   } catch (e) { /* Widget ist optional */ }
