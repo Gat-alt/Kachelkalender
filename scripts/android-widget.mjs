@@ -11,7 +11,7 @@ const pkgDir = path.join(app, "java/ch/kachelkalender/app");
 if (!fs.existsSync(pkgDir)) throw new Error("Android-Projekt nicht gefunden: " + pkgDir);
 
 // Kotlin-Datei und Ressourcen kopieren
-for (const f of ["KachelWidget.kt", "KachelTasksWidget.kt"]) fs.copyFileSync(path.join(src, f), path.join(pkgDir, f));
+for (const f of ["KachelWidget.kt", "KachelTasksWidget.kt", "KachelWeekWidget.kt"]) fs.copyFileSync(path.join(src, f), path.join(pkgDir, f));
 const copyDir = (a, b) => { fs.mkdirSync(b, { recursive: true }); for (const f of fs.readdirSync(a)) { const s = path.join(a, f), d = path.join(b, f); fs.statSync(s).isDirectory() ? copyDir(s, d) : fs.copyFileSync(s, d); } };
 copyDir(path.join(src, "res"), path.join(app, "res"));
 
@@ -19,7 +19,11 @@ copyDir(path.join(src, "res"), path.join(app, "res"));
 const mf = path.join(app, "AndroidManifest.xml");
 let m = fs.readFileSync(mf, "utf8");
 if (!m.includes("KachelWidget")) {
-  m = m.replace("</application>", `    <receiver android:name="ch.kachelkalender.app.KachelWidget" android:exported="false" android:label="Kachelkalender · Termine">
+  m = m.replace("</application>", `    <receiver android:name="ch.kachelkalender.app.KachelWeekWidget" android:exported="false" android:label="Kachelkalender · Woche">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/kachel_week_widget_info" />
+        </receiver>
+        <receiver android:name="ch.kachelkalender.app.KachelWidget" android:exported="false" android:label="Kachelkalender · Termine">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/kachel_widget_info" />
         </receiver>
@@ -40,6 +44,7 @@ if (!a.includes("KachelWidget.refresh")) {
     super.onPause()
     KachelWidget.refresh(this)
     KachelTasksWidget.refresh(this)
+    KachelWeekWidget.refresh(this)
   }
 
   override fun onResume() {

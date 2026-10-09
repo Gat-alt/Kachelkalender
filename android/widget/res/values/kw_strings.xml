@@ -2,4 +2,5 @@
 <resources>
     <string name="kw_desc">Deine nächsten Termine</string>
     <string name="kt_desc">Alle offenen Aufgaben auf einen Blick</string>
+    <string name="kk_desc">Die ganze Woche als Kacheln, ein Tipp öffnet den Tag</string>
 </resources>

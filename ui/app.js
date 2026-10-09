@@ -769,6 +769,17 @@ async function writeWidget() {
       return { group: G[g], g, due: t.due, nodue: !!t.nodue, title: t.title, meta, todoist: t.src === "todoist" };
     }).sort((a, b) => a.g - b.g || a.due.localeCompare(b.due) || a.title.localeCompare(b.title));
     await T.core.invoke("widget_data", { json: JSON.stringify(tasks.slice(0, 60)), name: "tasks" });
+    // Drittes Widget: die Woche als Kacheln (diese und nächste Woche, damit es am Montag schon stimmt)
+    const mon = K.addDays(new Date(), -((new Date().getDay() + 6) % 7)), days = [];
+    for (let i = 0; i < 14; i++) {
+      const d = K.addDays(mon, i), ds = K.ymd(d);
+      const items = K.visible().filter(e => e.date === ds || (e.edate && e.date < ds && e.edate >= ds))
+        .map(e => ({ t: e.allDay || e.date < ds ? "" : e.start, title: e.title, color: K.calOf(e.cal).color }))
+        .sort((a, b) => (a.t || "").localeCompare(b.t || ""));
+      days.push({ ds, d: d.getDate(), m: d.getMonth() + 1, items: items.slice(0, 12), n: items.length });
+    }
+    const open = (K.S.tasks || []).filter(t => !t.done).length;
+    await T.core.invoke("widget_data", { json: JSON.stringify({ days, open }), name: "week" });
   } catch (e) { /* Widget ist optional */ }
 }
 function desktopTick() {
@@ -793,7 +804,7 @@ window.KK_APP = k => {
   addEventListener("offline", () => { offline = true; status(); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && (!lastSync || Date.now() - lastSync > 5 * 60e3)) syncAll(false); });
   scheduleReminders();
-  const fromWidget = async () => { if (!IS_ANDROID || !T.core || !T.core.invoke) return; try { const w = await T.core.invoke("widget_open"); if (w === "tasks") { const b = document.getElementById("bb-tasks") || document.getElementById("task-btn"); if (b) b.click(); } } catch (e) {} };
+  const fromWidget = async () => { if (!IS_ANDROID || !T.core || !T.core.invoke) return; try { const w = await T.core.invoke("widget_open"); if (w === "tasks") { const b = document.getElementById("bb-tasks") || document.getElementById("task-btn"); if (b) b.click(); } else if (w.startsWith("day:") && K.goto) { K.goto(w.slice(4), "tiles"); } } catch (e) {} };
   setTimeout(fromWidget, 400);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(fromWidget, 150); });
 };

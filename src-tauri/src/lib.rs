@@ -6,7 +6,7 @@
 #[tauri::command]
 fn widget_data(app: tauri::AppHandle, json: String, name: Option<String>) -> Result<(), String> {
     use tauri::Manager;
-    let file = match name.as_deref() { Some("tasks") => "kk-tasks.json", _ => "kk-widget.json" };
+    let file = match name.as_deref() { Some("tasks") => "kk-tasks.json", Some("week") => "kk-week.json", _ => "kk-widget.json" };
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     std::fs::write(dir.join(file), json).map_err(|e| e.to_string())

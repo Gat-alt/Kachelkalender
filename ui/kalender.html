@@ -825,6 +825,11 @@ body.placing .mic{opacity:0;pointer-events:none}
 @supports (color:oklch(from red l c h)){
   .ev,.cchip,.calchip,.sheet.act,.evsheet.tinted,.peek{--cp:oklch(from var(--c) .85 clamp(.09,calc(c * .7),.15) h);--cp2:oklch(from var(--c) .93 clamp(.06,calc(c * .5),.1) h);--ce:oklch(from var(--c) .62 clamp(.1,c,.2) h)}}
 html.strong{--edge:0px}
+/* Kräftig leuchtend: satte, helle Farben statt Pastell */
+html.vivid .ev,html.vivid .cchip,html.vivid .calchip,html.vivid .sheet.act,html.vivid .evsheet.tinted,html.vivid .peek{--cp:color-mix(in srgb,var(--c) 78%,#fff);--cp2:color-mix(in srgb,var(--c) 62%,#fff);--ce:var(--c);--cink:#0c121a}
+@supports (color:oklch(from red l c h)){
+  html.vivid .ev,html.vivid .cchip,html.vivid .calchip,html.vivid .sheet.act,html.vivid .evsheet.tinted,html.vivid .peek{--cp:oklch(from var(--c) .8 clamp(.15,calc(c * 1.15),.24) h);--cp2:oklch(from var(--c) .73 clamp(.16,calc(c * 1.2),.26) h);--ce:oklch(from var(--c) .56 clamp(.15,c,.24) h)}}
+html.vivid .ev{box-shadow:0 3px 14px -4px var(--ce),inset 0 1px 0 rgba(255,255,255,.55)}
 html.strong .ev{background:linear-gradient(160deg,var(--cp),var(--cp2));color:var(--cink);border:1.5px solid var(--ce);border-left:4px solid var(--ce);font-weight:650;box-shadow:0 3px 12px -4px var(--ce),inset 0 1px 0 rgba(255,255,255,.7)}
 html.strong .ev .n{color:inherit;opacity:1}
 html.strong .ev .t,html.strong .ev .l,html.strong .ev .tm{color:inherit;opacity:.72}
@@ -962,7 +967,7 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
         <label>Darstellung<select id="set-theme"><option value="">Wie System</option><option value="light">Hell</option><option value="dim">Mittel (Schiefer)</option><option value="dark">Dunkel</option></select></label>
         <label>Schriftgrösse<select id="set-font"><option value="13px">Klein</option><option value="14.5px">Mittel</option><option value="16px">Gross</option><option value="18px">Sehr gross</option></select></label>
       </div>
-      <label>Termin-Farben<select id="set-style"><option value="tint">Normal (hell mit Farbrand)</option><option value="strong">Pastell strahlend</option></select></label>
+      <label>Termin-Farben<select id="set-style"><option value="tint">Normal (hell mit Farbrand)</option><option value="strong">Pastell</option><option value="vivid">Kräftig leuchtend</option></select></label>
       <label>Beim Drehen ins Querformat<select id="set-rot"><option value="grid">Woche zeigen</option><option value="work">Mo–Fr zeigen</option><option value="month">Monat zeigen</option><option value="tiles">Kacheln zeigen</option><option value="none">Ansicht nicht wechseln</option></select></label>
       <label class="inline"><input type="checkbox" id="set-gaps"> Freie Zeit zwischen Terminen als Abstand zeigen</label>
       <label class="inline"><input type="checkbox" id="set-kw"> Wochennummern anzeigen</label>
@@ -1510,7 +1515,10 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-caledit]")
 function render(anim){document.documentElement.dataset.v=view;
   if(S.set.style==="fill")S.set.style="strong";
   document.documentElement.classList.toggle("solid",false);
-  document.documentElement.classList.toggle("strong",S.set.style==="strong");
+  /* Einmalig auf «Kräftig leuchtend» umstellen (Wunsch: Farben sollen strahlen) */
+  if(!S.set.styleV){S.set.styleV=1;if(!S.set.style||S.set.style==="tint"||S.set.style==="strong")S.set.style="vivid";save()}
+  document.documentElement.classList.toggle("strong",S.set.style==="strong"||S.set.style==="vivid");
+  document.documentElement.classList.toggle("vivid",S.set.style==="vivid");
   document.documentElement.classList.toggle("land",isLand());
   document.documentElement.style.setProperty("--fs",S.set.font);
   if(S.set.theme) document.documentElement.dataset.theme=S.set.theme; else delete document.documentElement.dataset.theme;
@@ -2516,7 +2524,7 @@ function net(){const on=navigator.onLine;$("net-dot").classList.toggle("off",!on
 addEventListener("online",net);addEventListener("offline",net);net();
 setInterval(()=>{if(view==="day"||view==="grid"||view==="work")render()},60000);
 render();
-if(window.KK_APP)window.KK_APP({get S(){return S},save,render,toast,calOf,uid,PALETTE,SRC,parse,ymd,addDays,toMin,mins,esc,$,expanded,visible,cursorDate:()=>cursor});
+if(window.KK_APP)window.KK_APP({get S(){return S},save,render,toast,calOf,uid,PALETTE,SRC,parse,ymd,addDays,toMin,mins,esc,$,expanded,visible,cursorDate:()=>cursor,goto:(ds,v)=>{const d=parse(ds);if(isNaN(d))return;cursor=d;document.querySelectorAll(".scrim").forEach(x=>x.hidden=true);if(v&&v!==view)setView(v);else render("f")}});
 /* ---------- Spracheingabe: Whisper auf dem Gerät, keine Aufnahme verlässt das Handy ---------- */
 {
   const mic=$("mic"),WKEY=KEY+"-whisper";let W=null,rec=null,chunks=[],stream=null,stopT=null;
