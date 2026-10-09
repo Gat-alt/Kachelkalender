@@ -733,6 +733,15 @@ async function writeWidget() {
     }
     list.sort((a, b) => a.ds.localeCompare(b.ds) || (a.time === "ganztägig" ? -1 : b.time === "ganztägig" ? 1 : a.time.localeCompare(b.time)));
     await T.core.invoke("widget_data", { json: JSON.stringify(list.slice(0, 40)) });
+    // Zweites Widget: alle offenen Aufgaben
+    const wk = K.ymd(K.addDays(new Date(), 7)), G = ["Überfällig", "Heute", "Diese Woche", "Später", "Ohne Datum"];
+    const grp = t => t.nodue ? 4 : t.due < today ? 0 : t.due === today ? 1 : t.due <= wk ? 2 : 3;
+    const tasks = (K.S.tasks || []).filter(t => !t.done).map(t => {
+      const g = grp(t), d = K.parse(t.due);
+      const meta = t.sDate && t.sStart ? (t.sDate === today ? t.sStart : `${WD[K.parse(t.sDate).getDay()]} ${t.sStart}`) : (g === 2 || g === 3 || g === 0) ? `${WD[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.` : "";
+      return { group: G[g], g, due: t.due, title: t.title, meta, todoist: t.src === "todoist" };
+    }).sort((a, b) => a.g - b.g || a.due.localeCompare(b.due) || a.title.localeCompare(b.title));
+    await T.core.invoke("widget_data", { json: JSON.stringify(tasks.slice(0, 60)), name: "tasks" });
   } catch (e) { /* Widget ist optional */ }
 }
 function desktopTick() {
@@ -757,6 +766,9 @@ window.KK_APP = k => {
   addEventListener("offline", () => { offline = true; status(); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && (!lastSync || Date.now() - lastSync > 5 * 60e3)) syncAll(false); });
   scheduleReminders();
+  const fromWidget = async () => { if (!IS_ANDROID || !T.core || !T.core.invoke) return; try { const w = await T.core.invoke("widget_open"); if (w === "tasks") { const b = document.getElementById("bb-tasks") || document.getElementById("task-btn"); if (b) b.click(); } } catch (e) {} };
+  setTimeout(fromWidget, 400);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(fromWidget, 150); });
 };
 
 // für Tests ohne App

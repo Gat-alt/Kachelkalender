@@ -33,8 +33,10 @@ check("Zwei Erinnerungen geplant (1 Tag und 1 Std. vorher)", p.length === 2 && p
 check("Text der Erinnerung sagt, wann es losgeht", p.some(x => x.b.startsWith("Morgen")) && p.some(x => x.b.startsWith("In 1 Std.")), JSON.stringify(p.map(x => x.b)));
 const g = sent.filter(x => x.t === "Geburtstag Mia");
 check("Ganztägiger Termin: Erinnerung um 08:00", g.length === 1 && g[0].at === "2026-10-09T06:00:00.000Z", JSON.stringify(g));
-const w = await pg.evaluate(() => window._inv.filter(x => x[0] === "widget_data").map(x => JSON.parse(x[1].json)).pop());
+const w = await pg.evaluate(() => window._inv.filter(x => x[0] === "widget_data" && !x[1].name).map(x => JSON.parse(x[1].json)).pop());
 check("Widget bekommt die nächsten Termine", Array.isArray(w) && w.length === 2 && w[0].day === "Morgen" && w[1].day === "Sa, 10. Okt.", w && JSON.stringify(w.slice(0, 2)));
+const tw = await pg.evaluate(() => window._inv.filter(x => x[0] === "widget_data" && x[1].name === "tasks").map(x => JSON.parse(x[1].json)).pop());
+check("Aufgaben-Widget bekommt die offenen Aufgaben", Array.isArray(tw), JSON.stringify(tw));
 check("Widget: sortiert und mit Farbe", w && w.every((x, i) => i === 0 || x.ds >= w[i - 1].ds) && w.every(x => /^#/.test(x.color)));
 check("keine JS-Fehler", !errs.length, errs.join(" | "));
 
@@ -75,6 +77,9 @@ const created = calls.find(c => c[0] === "POST" && c[1] === "/api/v1/tasks");
 check("Neue Aufgabe wird in Todoist angelegt", created && created[2].content === "Neu aus Kalender", JSON.stringify(created));
 const after = await pg.evaluate(() => JSON.parse(localStorage.getItem("kachelkalender-proto-v1")).tasks.filter(t => t.title === "Neu aus Kalender"));
 check("…ohne Doppel", after.length === 1 && after[0].src === "todoist", JSON.stringify(after));
+await pg.waitForTimeout(1200);
+const tw2 = await pg.evaluate(() => window._inv.filter(x => x[0] === "widget_data" && x[1].name === "tasks").map(x => JSON.parse(x[1].json)).pop());
+check("Aufgaben-Widget: Todoist-Aufgaben gruppiert", tw2 && tw2.some(t => t.todoist && t.group === "Ohne Datum") && tw2.some(t => t.title === "Zahnarzt anrufen" && t.meta === "14:00"), JSON.stringify(tw2));
 // Einplanen -> Uhrzeit und Dauer in Todoist
 await pg.click("#bb-tasks"); await pg.waitForTimeout(300);
 await pg.click('#task-scrim [data-plan="td103"]'); await pg.waitForTimeout(200);
