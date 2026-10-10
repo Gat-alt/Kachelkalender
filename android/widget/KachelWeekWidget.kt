@@ -74,7 +74,8 @@ class KachelWeekWidget : AppWidgetProvider() {
             return PendingIntent.getActivity(ctx, req, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
 
-        private fun draw(ctx: Context, mgr: AppWidgetManager, id: Int) {
+        @JvmStatic
+        fun draw(ctx: Context, mgr: AppWidgetManager, id: Int) {
             val v = RemoteViews(ctx.packageName, R.layout.kachel_week_widget)
             // Je höher das Widget, desto mehr Termine pro Kachel
             val hDp = try { mgr.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 300) } catch (e: Exception) { 300 }

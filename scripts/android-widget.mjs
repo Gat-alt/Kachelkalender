@@ -27,7 +27,7 @@ if (!m.includes("KachelWidget")) {
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/kachel_widget_info" />
         </receiver>
-        <receiver android:name="ch.kachelkalender.app.KachelTasksWidget" android:exported="false" android:label="Kachelkalender · Aufgaben">
+        <receiver android:name="ch.kachelkalender.app.KachelTasksWidget" android:exported="false" android:label="Kachelkalender · Woche + Aufgaben">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/kachel_tasks_widget_info" />
         </receiver>

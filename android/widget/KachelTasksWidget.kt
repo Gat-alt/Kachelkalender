@@ -20,8 +20,13 @@ import org.json.JSONArray
 import java.io.File
 
 class KachelTasksWidget : AppWidgetProvider() {
+    // Zeigt jetzt die Woche als Kacheln (mit Aufgaben-Kachel), damit bereits platzierte Widgets gleich mitwechseln
     override fun onUpdate(ctx: Context, mgr: AppWidgetManager, ids: IntArray) {
-        for (id in ids) draw(ctx, mgr, id)
+        for (id in ids) KachelWeekWidget.draw(ctx, mgr, id)
+    }
+
+    override fun onAppWidgetOptionsChanged(ctx: Context, mgr: AppWidgetManager, id: Int, opts: android.os.Bundle) {
+        KachelWeekWidget.draw(ctx, mgr, id)
     }
 
     companion object {
@@ -30,7 +35,7 @@ class KachelTasksWidget : AppWidgetProvider() {
             try {
                 val mgr = AppWidgetManager.getInstance(ctx)
                 val ids = mgr.getAppWidgetIds(ComponentName(ctx, KachelTasksWidget::class.java))
-                for (id in ids) draw(ctx, mgr, id)
+                for (id in ids) KachelWeekWidget.draw(ctx, mgr, id)
             } catch (e: Exception) { }
         }
 
