@@ -73,18 +73,18 @@ class KachelTasksWidget : AppWidgetProvider() {
                             sb.append(g.uppercase()).append("\n")
                             sb.setSpan(StyleSpan(Typeface.BOLD), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                             sb.setSpan(RelativeSizeSpan(0.8f), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            sb.setSpan(ForegroundColorSpan(Color.parseColor(if (g == "Überfällig") "#F08A7E" else "#97A3B3")), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            sb.setSpan(ForegroundColorSpan(Color.parseColor(if (g == "Überfällig") "#FFFFFF" else "#9E9E9E")), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                             lastGroup = g
                         }
                         val b = sb.length
                         sb.append("○ ")
-                        sb.setSpan(ForegroundColorSpan(Color.parseColor(if (o.optBoolean("todoist")) "#E44332" else "#6C9CFF")), b, b + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        sb.setSpan(ForegroundColorSpan(Color.parseColor("#FFFFFF")), b, b + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                         sb.append(o.optString("title"))
                         val meta = o.optString("meta")
                         if (meta.isNotEmpty()) {
                             val m = sb.length
                             sb.append("  ").append(meta)
-                            sb.setSpan(ForegroundColorSpan(Color.parseColor("#97A3B3")), m, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            sb.setSpan(ForegroundColorSpan(Color.parseColor("#9E9E9E")), m, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                             sb.setSpan(RelativeSizeSpan(0.85f), m, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                         }
                         sb.append("\n")

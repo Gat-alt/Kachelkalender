@@ -78,7 +78,7 @@ class KachelWeekWidget : AppWidgetProvider() {
             val v = RemoteViews(ctx.packageName, R.layout.kachel_week_widget)
             // Je höher das Widget, desto mehr Termine pro Kachel
             val hDp = try { mgr.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 300) } catch (e: Exception) { 300 }
-            val perTile = ((hDp - 40) / 4 - 18).coerceAtLeast(14) / 14
+            val perTile = ((hDp - 44) / 4 - 22).coerceAtLeast(17) / 17
 
             val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT)
             val cal = Calendar.getInstance()
@@ -100,8 +100,9 @@ class KachelWeekWidget : AppWidgetProvider() {
                 val h = sb.length
                 sb.append(WD[i]).append("  ").append(c.get(Calendar.DAY_OF_MONTH).toString())
                 sb.setSpan(StyleSpan(Typeface.BOLD), h, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                sb.setSpan(ForegroundColorSpan(if (isToday) Color.parseColor("#8DB4FF") else Color.parseColor("#97A3B3")), h, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                if (isToday) { val t = sb.length; sb.append("  heute"); sb.setSpan(RelativeSizeSpan(0.85f), t, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); sb.setSpan(ForegroundColorSpan(Color.parseColor("#8DB4FF")), t, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
+                sb.setSpan(ForegroundColorSpan(if (isToday) Color.parseColor("#FFFFFF") else Color.parseColor("#BDBDBD")), h, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.setSpan(RelativeSizeSpan(1.12f), h, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                if (isToday) { val t = sb.length; sb.append("  heute"); sb.setSpan(RelativeSizeSpan(0.85f), t, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); sb.setSpan(ForegroundColorSpan(Color.parseColor("#FFFFFF")), t, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
                 val day = byDay[ds]
                 val items = day?.optJSONArray("items")
                 val total = day?.optInt("n", items?.length() ?: 0) ?: 0
@@ -110,32 +111,31 @@ class KachelWeekWidget : AppWidgetProvider() {
                     for (k in 0 until show) {
                         val o = items.getJSONObject(k)
                         sb.append("\n")
-                        // Leuchtender Farbbalken pro Termin: satte Kalenderfarbe, dunkle Schrift
-                        val bg = bright(color(o.optString("color"), "#6C9CFF"))
+                        // Schwarz-Weiss: weisser Strich, graue Zeit, weisser Titel (Farbe gibt es erst in der App)
                         val d = sb.length
-                        sb.append(" ")
+                        sb.append("▎")
+                        sb.setSpan(ForegroundColorSpan(Color.parseColor("#FFFFFF")), d, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                         val t = o.optString("t")
                         if (t.isNotEmpty()) {
                             val a = sb.length
-                            sb.append(t).append(" ")
-                            sb.setSpan(RelativeSizeSpan(0.88f), a, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            sb.append(" ").append(t).append(" ")
+                            sb.setSpan(RelativeSizeSpan(0.85f), a, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            sb.setSpan(ForegroundColorSpan(Color.parseColor("#9E9E9E")), a, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                         }
                         val ti = sb.length
-                        sb.append(o.optString("title")).append(" ")
-                        sb.setSpan(StyleSpan(Typeface.BOLD), ti, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                        sb.setSpan(BackgroundColorSpan(bg), d, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                        sb.setSpan(ForegroundColorSpan(Color.parseColor("#0C121A")), d, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        sb.append(o.optString("title"))
+                        sb.setSpan(ForegroundColorSpan(Color.parseColor("#F2F2F2")), ti, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
                     if (total > show) {
                         val m = sb.length
                         sb.append("\n+").append((total - show).toString()).append(" weitere")
-                        sb.setSpan(ForegroundColorSpan(Color.parseColor("#97A3B3")), m, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        sb.setSpan(ForegroundColorSpan(Color.parseColor("#9E9E9E")), m, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                         sb.setSpan(RelativeSizeSpan(0.85f), m, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
                 } else if (data != null) {
                     val m = sb.length
                     sb.append("\nfrei")
-                    sb.setSpan(ForegroundColorSpan(Color.parseColor("#5E6A7A")), m, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sb.setSpan(ForegroundColorSpan(Color.parseColor("#6E6E6E")), m, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
                 v.setTextViewText(TILES[i], sb)
                 v.setInt(TILES[i], "setBackgroundResource", if (isToday) R.drawable.kw_tile_today else R.drawable.kw_tile)
@@ -147,14 +147,15 @@ class KachelWeekWidget : AppWidgetProvider() {
             val tb = SpannableStringBuilder()
             tb.append("AUFGABEN")
             tb.setSpan(StyleSpan(Typeface.BOLD), 0, tb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            tb.setSpan(ForegroundColorSpan(Color.parseColor("#97A3B3")), 0, tb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            tb.setSpan(ForegroundColorSpan(Color.parseColor("#BDBDBD")), 0, tb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             val b = tb.length
             tb.append("\n").append(if (n > 0) "$n offen" else "alles erledigt ✓")
             tb.setSpan(StyleSpan(Typeface.BOLD), b, tb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            tb.setSpan(ForegroundColorSpan(Color.parseColor("#FFFFFF")), b, tb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             tb.setSpan(RelativeSizeSpan(1.25f), b, tb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             val m = tb.length
             tb.append("\nantippen zum Ansehen")
-            tb.setSpan(ForegroundColorSpan(Color.parseColor("#6C9CFF")), m, tb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            tb.setSpan(ForegroundColorSpan(Color.parseColor("#9E9E9E")), m, tb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             tb.setSpan(RelativeSizeSpan(0.85f), m, tb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             v.setTextViewText(R.id.kd7, tb)
             v.setInt(R.id.kd7, "setBackgroundResource", R.drawable.kw_tile_tasks)

@@ -68,15 +68,15 @@ class KachelWidget : AppWidgetProvider() {
                             sb.append(day.uppercase()).append("\n")
                             sb.setSpan(StyleSpan(Typeface.BOLD), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                             sb.setSpan(RelativeSizeSpan(0.8f), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            sb.setSpan(ForegroundColorSpan(Color.parseColor("#97A3B3")), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            sb.setSpan(ForegroundColorSpan(Color.parseColor("#9E9E9E")), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                             lastDay = day
                         }
                         val d = sb.length
                         sb.append("● ")
-                        try { sb.setSpan(ForegroundColorSpan(Color.parseColor(o.optString("color", "#6C9CFF"))), d, d + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) } catch (e: Exception) { }
+                        try { sb.setSpan(ForegroundColorSpan(Color.parseColor("#FFFFFF")), d, d + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) } catch (e: Exception) { }
                         val t = sb.length
                         sb.append(o.optString("time")).append("  ")
-                        sb.setSpan(ForegroundColorSpan(Color.parseColor("#B5BFCC")), t, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        sb.setSpan(ForegroundColorSpan(Color.parseColor("#BDBDBD")), t, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                         sb.append(o.optString("title")).append("\n")
                         n++
                         if (n >= 10) break

@@ -11,7 +11,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Aufgaben"
-        android:textColor="#6C9CFF"
+        android:textColor="#BDBDBD"
         android:textSize="12sp"
         android:textStyle="bold"
         android:layout_marginBottom="6dp" />
@@ -19,7 +19,7 @@
         android:id="@+id/kt_list"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:textColor="#E8EDF3"
+        android:textColor="#F2F2F2"
         android:textSize="14sp"
         android:lineSpacingExtra="3dp"
         android:text="Wird geladen …" />
