@@ -829,6 +829,15 @@ html.strong{--edge:0px}
 html.vivid .ev,html.vivid .cchip,html.vivid .calchip,html.vivid .sheet.act,html.vivid .evsheet.tinted,html.vivid .peek{--cp:color-mix(in srgb,var(--c) 78%,#fff);--cp2:color-mix(in srgb,var(--c) 62%,#fff);--ce:var(--c);--cink:#0c121a}
 @supports (color:oklch(from red l c h)){
   html.vivid .ev,html.vivid .cchip,html.vivid .calchip,html.vivid .sheet.act,html.vivid .evsheet.tinted,html.vivid .peek{--cp:oklch(from var(--c) .8 clamp(.15,calc(c * 1.15),.24) h);--cp2:oklch(from var(--c) .73 clamp(.16,calc(c * 1.2),.26) h);--ce:oklch(from var(--c) .56 clamp(.15,c,.24) h)}}
+/* Pastell zart: noch weicher, weniger auffällig */
+html.soft .ev,html.soft .cchip,html.soft .calchip,html.soft .sheet.act,html.soft .evsheet.tinted,html.soft .peek{--cp:color-mix(in srgb,var(--c) 26%,#fff);--cp2:color-mix(in srgb,var(--c) 15%,#fff);--ce:color-mix(in srgb,var(--c) 75%,#fff);--cink:#26313d}
+@supports (color:oklch(from red l c h)){
+  html.soft .ev,html.soft .cchip,html.soft .calchip,html.soft .sheet.act,html.soft .evsheet.tinted,html.soft .peek{--cp:oklch(from var(--c) .92 clamp(.045,calc(c * .4),.08) h);--cp2:oklch(from var(--c) .965 clamp(.025,calc(c * .25),.05) h);--ce:oklch(from var(--c) .74 clamp(.07,calc(c * .7),.12) h)}}
+html.soft .ev{box-shadow:0 1px 6px -3px var(--ce),inset 0 1px 0 rgba(255,255,255,.8);font-weight:600}
+/* Pastell kräftiger: Pastell, aber deutlich sichtbarer */
+html.plus .ev,html.plus .cchip,html.plus .calchip,html.plus .sheet.act,html.plus .evsheet.tinted,html.plus .peek{--cp:color-mix(in srgb,var(--c) 60%,#fff);--cp2:color-mix(in srgb,var(--c) 44%,#fff);--ce:var(--c);--cink:#121a24}
+@supports (color:oklch(from red l c h)){
+  html.plus .ev,html.plus .cchip,html.plus .calchip,html.plus .sheet.act,html.plus .evsheet.tinted,html.plus .peek{--cp:oklch(from var(--c) .82 clamp(.12,calc(c * .9),.19) h);--cp2:oklch(from var(--c) .885 clamp(.09,calc(c * .7),.14) h);--ce:oklch(from var(--c) .58 clamp(.13,c,.22) h)}}
 html.vivid .ev{box-shadow:0 3px 14px -4px var(--ce),inset 0 1px 0 rgba(255,255,255,.55)}
 html.strong .ev{background:linear-gradient(160deg,var(--cp),var(--cp2));color:var(--cink);border:1.5px solid var(--ce);border-left:4px solid var(--ce);font-weight:650;box-shadow:0 3px 12px -4px var(--ce),inset 0 1px 0 rgba(255,255,255,.7)}
 html.strong .ev .n{color:inherit;opacity:1}
@@ -967,7 +976,7 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
         <label>Darstellung<select id="set-theme"><option value="">Wie System</option><option value="light">Hell</option><option value="dim">Mittel (Schiefer)</option><option value="dark">Dunkel</option></select></label>
         <label>Schriftgrösse<select id="set-font"><option value="13px">Klein</option><option value="14.5px">Mittel</option><option value="16px">Gross</option><option value="18px">Sehr gross</option></select></label>
       </div>
-      <label>Termin-Farben<select id="set-style"><option value="tint">Normal (hell mit Farbrand)</option><option value="strong">Pastell</option><option value="vivid">Kräftig leuchtend</option></select></label>
+      <label>Termin-Farben<select id="set-style"><option value="tint">Normal (hell mit Farbrand)</option><option value="soft">Pastell zart</option><option value="strong">Pastell</option><option value="plus">Pastell kräftiger</option><option value="vivid">Kräftig leuchtend</option></select></label>
       <label>Beim Drehen ins Querformat<select id="set-rot"><option value="grid">Woche zeigen</option><option value="work">Mo–Fr zeigen</option><option value="month">Monat zeigen</option><option value="tiles">Kacheln zeigen</option><option value="none">Ansicht nicht wechseln</option></select></label>
       <label class="inline"><input type="checkbox" id="set-gaps"> Freie Zeit zwischen Terminen als Abstand zeigen</label>
       <label class="inline"><input type="checkbox" id="set-kw"> Wochennummern anzeigen</label>
@@ -1517,7 +1526,9 @@ function render(anim){document.documentElement.dataset.v=view;
   document.documentElement.classList.toggle("solid",false);
   /* Einmalig auf «Kräftig leuchtend» umstellen (Wunsch: Farben sollen strahlen) */
   if(!S.set.styleV){S.set.styleV=1;if(!S.set.style||S.set.style==="tint"||S.set.style==="strong")S.set.style="vivid";save()}
-  document.documentElement.classList.toggle("strong",S.set.style==="strong"||S.set.style==="vivid");
+  document.documentElement.classList.toggle("strong",["soft","strong","plus","vivid"].includes(S.set.style));
+  document.documentElement.classList.toggle("soft",S.set.style==="soft");
+  document.documentElement.classList.toggle("plus",S.set.style==="plus");
   document.documentElement.classList.toggle("vivid",S.set.style==="vivid");
   document.documentElement.classList.toggle("land",isLand());
   document.documentElement.style.setProperty("--fs",S.set.font);
