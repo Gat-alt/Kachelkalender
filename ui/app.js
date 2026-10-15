@@ -144,10 +144,32 @@ function durMin(v) { const m = /^(-)?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\
 function hash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); }
 const WDN = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
-/* Wiederholregel: einfache Regeln werden zu Serien in der App, komplizierte werden aufgefaltet (nur lesen) */
+/* Wiederholregel: einfache Regeln werden zu den Serien-Arten der App, andere bleiben als eigene Regel («x») erhalten
+   und sind trotzdem bearbeitbar. Nur sehr seltene Regeln (z. B. stündlich, Kalenderwoche) werden aufgefaltet (nur lesen). */
 function ruleOf(r) { const o = {}; r.split(";").forEach(x => { const [k, v] = x.split("="); o[k.toUpperCase()] = v; }); o.iv = +(o.INTERVAL || 1); o.by = (o.BYDAY || "").split(",").filter(Boolean); return o; }
+function ruleOk(o) {
+  if (!["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(o.FREQ)) return false;
+  if (o.BYYEARDAY || o.BYWEEKNO || o.BYHOUR || o.BYMINUTE || o.BYSECOND || o.RDATE) return false;
+  if ((o.FREQ === "DAILY" || o.FREQ === "WEEKLY") && (o.BYMONTH || o.BYMONTHDAY || o.BYSETPOS)) return false;
+  if (o.FREQ === "MONTHLY" && o.BYMONTH) return false;
+  if (o.BYSETPOS && !o.by.length) return false;
+  if (o.by.some(x => !/^([+-]?[1-5])?(MO|TU|WE|TH|FR|SA|SU)$/.test(x))) return false;
+  if ((o.FREQ === "DAILY" || o.FREQ === "WEEKLY") && o.by.some(x => /\d/.test(x))) return false;
+  if (o.FREQ === "YEARLY" && !o.BYMONTH && o.by.some(x => /\d/.test(x))) return false;
+  return true;
+}
+const stripEnd = rr => rr.split(";").filter(x => x && !/^(UNTIL|COUNT)=/i.test(x)).join(";");
+/* Ende einer Serie mit fester Anzahl (COUNT) als Datum; der erste Termin zählt immer mit */
+function countEnd(st, o) {
+  let n = 0, last = st;
+  for (let d = new Date(st), i = 0; n < +o.COUNT && i < 366 * 60; d = K.addDays(d, 1), i++) if (i === 0 || matchDay(d, st, o)) { n++; last = d; }
+  return K.ymd(last);
+}
+/* Für die Oberfläche: liegt an Tag d ein Termin der eigenen Regel rr (Serienbeginn st)? */
+const ruleCache = new Map();
+window.KK_rule = (rr, st, d) => { let o = ruleCache.get(rr); if (!o) { o = ruleOf(rr); ruleCache.set(rr, o); } return matchDay(d, st, o); };
 function simpleRep(o, start) {
-  if (o.COUNT || o.BYSETPOS || o.BYMONTHDAY || o.BYMONTH || o.BYYEARDAY || o.BYWEEKNO) return null;
+  if (o.BYSETPOS || o.BYMONTHDAY || o.BYMONTH || o.BYYEARDAY || o.BYWEEKNO) return null;
   const wd = WDN[start.getDay()];
   if (o.FREQ === "DAILY" && o.iv === 1 && !o.by.length) return "d";
   if (o.FREQ === "WEEKLY") {
@@ -222,11 +244,25 @@ function toEvents(list, cal, meta, win) {
   if (!rr) { if (lock) base.lock = true; out.push(base); overrides.forEach(v => { const e = conv(v, { lock: true }); if (e) out.push(e); }); return out; }
   const o = ruleOf(rr), st = K.parse(base.date);
   const exd = master.ex.map(x => { const d = icsDate(x); return d && d.d; }).filter(Boolean);
-  overrides.forEach(v => { const d = icsDate(v.p["RECURRENCE-ID"]); if (d) exd.push(d.d); });
   const until = o.UNTIL ? o.UNTIL.slice(0, 4) + "-" + o.UNTIL.slice(4, 6) + "-" + o.UNTIL.slice(6, 8) : null;
   const f = simpleRep(o, st);
-  if (f && !lock) { base.rep = { f, until, ex: exd }; out.push(base); }
-  else {
+  if ((f || ruleOk(o)) && !master.p.RDATE) {
+    // bearbeitbare Serie; einzeln geänderte Termine (RECURRENCE-ID) bleiben Ausnahmen derselben Serie
+    const rep = { f: f || "x", until, ex: exd.slice(), ov: [] };
+    if (!f) rep.rr = stripEnd(rr);
+    if (o.COUNT) { rep.until = rep.cntU = countEnd(st, o); rep.cnt = +o.COUNT; }
+    base.rep = rep; out.push(base);
+    overrides.forEach(v => {
+      const rid = icsDate(v.p["RECURRENCE-ID"]), e = rid && conv(v); if (!e) return;
+      e.pof = base.id; e.rdate = rid.d;
+      e.rid = rid.dt && rid.t ? "RECURRENCE-ID:" + utcStamp(rid.dt) : "RECURRENCE-ID;VALUE=DATE:" + dOnly(rid.d);
+      if (!rep.ov.includes(rid.d)) rep.ov.push(rid.d);
+      out.push(e);
+    });
+    return out;
+  }
+  overrides.forEach(v => { const d = icsDate(v.p["RECURRENCE-ID"]); if (d) exd.push(d.d); });
+  {
     // auffalten im Zeitfenster (nur lesen in der App, bearbeiten beim Anbieter)
     let n = 0; const end = win.b, startScan = o.COUNT ? st : (win.a > st ? win.a : st);
     if (o.COUNT) { for (let d = new Date(st); d <= end && n < +o.COUNT; d = K.addDays(d, 1)) if (matchDay(d, st, o)) { n++; push(d); } }
@@ -251,11 +287,20 @@ function dtLine(name, ds, t) {
   if (LOCAL_TZ === "Europe/Zurich") return `${name};TZID=Europe/Zurich:${dOnly(ds)}T${t.replace(":", "")}00`;
   const [h, m] = t.split(":").map(Number), d = K.parse(ds); d.setHours(h, m, 0, 0); return `${name}:${utcStamp(d)}`;
 }
-function buildICS(e) {
+/* e = Termin bzw. Serie; ovs = einzeln geänderte Termine dieser Serie (werden als RECURRENCE-ID mitgeschrieben) */
+function buildICS(e, ovs) {
+  ovs = ovs || [];
   const uid = e.uid || (e.id + "@kachelkalender");
   const L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Kachelkalender//Kachelkalender 0.1//DE", "CALSCALE:GREGORIAN"];
-  if (!e.allDay && LOCAL_TZ === "Europe/Zurich") L.push(...VTZ_ZRH);
+  if ([e, ...ovs].some(x => !x.allDay) && LOCAL_TZ === "Europe/Zurich") L.push(...VTZ_ZRH);
+  vevent(L, e, uid, null);
+  ovs.forEach(x => vevent(L, x, uid, x.rid || (e.allDay ? "RECURRENCE-ID;VALUE=DATE:" + dOnly(x.rdate) : dtLine("RECURRENCE-ID", x.rdate, x.rst || e.start))));
+  L.push("END:VCALENDAR");
+  return L.map(fold).join("\r\n") + "\r\n";
+}
+function vevent(L, e, uid, rid) {
   L.push("BEGIN:VEVENT", "UID:" + uid, "DTSTAMP:" + utcStamp(new Date()));
+  if (rid) L.push(rid);
   if (e.allDay) { L.push("DTSTART;VALUE=DATE:" + dOnly(e.date), "DTEND;VALUE=DATE:" + dOnly(K.ymd(K.addDays(K.parse(e.edate || e.date), 1)))); }
   else { L.push(dtLine("DTSTART", e.date, e.start), dtLine("DTEND", e.edate && e.edate > e.date ? e.edate : e.date, e.end)); }
   L.push("SUMMARY:" + icsEsc(e.title));
@@ -263,18 +308,18 @@ function buildICS(e) {
   if (e.notes) L.push("DESCRIPTION:" + icsEsc(e.notes));
   if (e.url) L.push("URL:" + e.url);
   if (e.free) L.push("TRANSP:TRANSPARENT");
-  if (e.rep) {
-    const RR = { d: "FREQ=DAILY", wd: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", w: "FREQ=WEEKLY", w2: "FREQ=WEEKLY;INTERVAL=2", m: "FREQ=MONTHLY", y: "FREQ=YEARLY" }[e.rep.f];
+  if (e.rep && !rid) {
+    const RR = e.rep.f === "x" ? e.rep.rr : { d: "FREQ=DAILY", wd: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", w: "FREQ=WEEKLY", w2: "FREQ=WEEKLY;INTERVAL=2", m: "FREQ=MONTHLY", y: "FREQ=YEARLY" }[e.rep.f];
     if (RR) {
       let u = "";
-      if (e.rep.until) u = e.allDay ? ";UNTIL=" + dOnly(e.rep.until) : ";UNTIL=" + (() => { const d = K.parse(e.rep.until); d.setHours(23, 59, 59); return utcStamp(d); })();
+      if (e.rep.cnt && e.rep.until === e.rep.cntU) u = ";COUNT=" + e.rep.cnt; // feste Anzahl bleibt erhalten, solange das Ende nicht geändert wurde
+      else if (e.rep.until) u = e.allDay ? ";UNTIL=" + dOnly(e.rep.until) : ";UNTIL=" + (() => { const d = K.parse(e.rep.until); d.setHours(23, 59, 59); return utcStamp(d); })();
       L.push("RRULE:" + RR + u);
       (e.rep.ex || []).forEach(ds => L.push(e.allDay ? "EXDATE;VALUE=DATE:" + dOnly(ds) : dtLine("EXDATE", ds, e.start)));
     }
   }
   if (e.remind != null && e.remind >= 0) L.push("BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + icsEsc(e.title), "TRIGGER:-PT" + e.remind + "M", "END:VALARM");
-  L.push("END:VEVENT", "END:VCALENDAR");
-  return L.map(fold).join("\r\n") + "\r\n";
+  L.push("END:VEVENT");
 }
 const sig = e => JSON.stringify([e.title, e.date, e.edate || "", !!e.allDay, e.start || "", e.end || "", e.loc || "", e.notes || "", e.rep || null, e.remind == null ? null : e.remind, e.cal, !!e.free]);
 
@@ -341,8 +386,10 @@ async function pullDav(cal) {
   });
   const mine = S.ev.filter(e => e.cal === cal.id || e.rcal === cal.id);
   // lokale Änderungen, die noch hochgeladen werden (bei Nur-lesen-Kalendern und gesperrten Einzelterminen gilt immer der Server)
-  const dirty = cal.ro ? [] : mine.filter(e => !e.lock && (!e.rh || e.rsig !== sig(e)));
-  const dirtyHref = new Set(dirty.map(e => e.rh).filter(Boolean));
+  // eine Serie und ihre Ausnahmen liegen in derselben Ressource: ist ein Teil geändert, bleibt die ganze Gruppe lokal
+  const d0 = cal.ro ? [] : mine.filter(e => !e.lock && (!e.rh || e.rsig !== sig(e)));
+  const dirtyHref = new Set(d0.map(e => e.rh).filter(Boolean));
+  const dirty = cal.ro ? [] : mine.filter(e => !e.lock && (!e.rh ? d0.includes(e) : dirtyHref.has(e.rh)));
   const keep = fresh.filter(e => !dirtyHref.has(e.rh));
   keepLocal(mine, keep);
   S.ev = S.ev.filter(e => !(e.cal === cal.id || e.rcal === cal.id)).concat(keep, dirty);
@@ -350,8 +397,17 @@ async function pullDav(cal) {
 }
 async function pushDav() {
   const S = K.S, errs = [];
+  // Ausnahme einer Serie: in einen anderen Kalender verschoben → wird ein eigener Termin, die Serie lässt den Tag aus
+  for (const x of S.ev.filter(x => x.pof)) {
+    const m = S.ev.find(y => y.id === x.pof);
+    if (!m) continue;
+    if (x.rcal && x.cal !== x.rcal) {
+      if (m.rep) { m.rep.ov = (m.rep.ov || []).filter(d => d !== x.rdate); if (!(m.rep.ex || []).includes(x.rdate)) m.rep.ex = [...(m.rep.ex || []), x.rdate]; }
+      ["pof", "rid", "rdate", "rst", "rh", "et", "rcal", "rsig", "uid"].forEach(k => delete x[k]);
+    } else if (x.cal !== m.cal) x.cal = m.cal; // die ganze Serie wurde verschoben: Ausnahmen gehen mit
+  }
   // in einen Kalender ohne Konto verschoben (z. B. «nur auf diesem Gerät»): beim alten Anbieter löschen
-  for (const e of S.ev.filter(x => x.rh && x.rcal && x.rcal !== x.cal && !x.gid)) {
+  for (const e of S.ev.filter(x => x.rh && x.rcal && x.rcal !== x.cal && !x.gid && !x.pof)) {
     const old = S.cals.find(c => c.id === e.rcal), now = S.cals.find(c => c.id === e.cal);
     if (!old || !old.acct || old.type === "ms" || (now && now.acct && now.type !== "ms")) continue;
     try { await dav("DELETE", e.rh, old.acct, null, null, e.et ? { "If-Match": e.et } : {}); } catch (err) { if (!err.conflict) { errs.push(err); continue; } }
@@ -359,8 +415,9 @@ async function pushDav() {
   }
   for (const cal of S.cals.filter(c => c.acct && !c.ro && c.type !== "ms")) {
     const known = new Set(cal.known || []), alive = new Set();
-    for (const e of S.ev.filter(x => x.cal === cal.id && !x.lock)) {
-      if (e.rh && e.rcal === cal.id && e.rsig === sig(e)) { alive.add(e.rh); continue; }
+    for (const e of S.ev.filter(x => x.cal === cal.id && !x.lock && !x.pof)) {
+      const ovs = S.ev.filter(x => x.pof === e.id); // Ausnahmen werden mit ihrer Serie hochgeladen
+      if (e.rh && e.rcal === cal.id && e.rsig === sig(e) && ovs.every(x => x.rsig === sig(x))) { alive.add(e.rh); continue; }
       if (e.rh && e.rcal && e.rcal !== e.cal) { // in einen anderen Kalender verschoben: dort löschen
         const old = S.cals.find(c => c.id === e.rcal); if (old && old.acct) { try { await dav("DELETE", e.rh, old.acct, null, null, e.et ? { "If-Match": e.et } : {}); } catch (err) { if (!err.conflict) throw err; } }
         delete e.rh; delete e.et;
@@ -369,12 +426,13 @@ async function pushDav() {
       const hdr = { "Content-Type": "text/calendar; charset=utf-8" };
       if (e.rh && e.et) hdr["If-Match"] = e.et; else if (!e.rh) hdr["If-None-Match"] = "*";
       if (!e.uid) e.uid = e.id + "@kachelkalender";
-      const s0 = sig(e), body = buildICS(e); // Stand vor dem Hochladen: Änderungen währenddessen gehen beim nächsten Mal mit
+      const s0 = sig(e), os0 = ovs.map(sig), body = buildICS(e, ovs); // Stand vor dem Hochladen: Änderungen währenddessen gehen beim nächsten Mal mit
       try {
         const r = await dav("PUT", href, cal.acct, body, null, hdr);
         e.rh = href; e.et = r.etag || ""; e.rcal = cal.id; e.rsig = s0; alive.add(href);
+        ovs.forEach((x, i) => { x.rh = href; x.et = e.et; x.rcal = cal.id; x.rsig = os0[i]; x.uid = e.uid; });
       } catch (err) {
-        if (err.conflict) { e.rsig = s0; K.toast("Termin wurde woanders geändert", e.title + ": die Version vom Server gilt"); }
+        if (err.conflict) { e.rsig = s0; ovs.forEach((x, i) => x.rsig = os0[i]); K.toast("Termin wurde woanders geändert", e.title + ": die Version vom Server gilt"); }
         else { errs.push(err); if (e.rh) alive.add(e.rh); } // einzelner Fehler: mit den übrigen Terminen weitermachen
       }
     }

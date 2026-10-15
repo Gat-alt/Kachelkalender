@@ -1197,11 +1197,27 @@ const calOf=id=>S.cals.find(c=>c.id===id)||S.cals[0];
 /* Wiederkehrende Termine: Serien werden für den sichtbaren Zeitraum aufgefaltet */
 const REP={d:"Täglich",wd:"Jeden Werktag (Mo–Fr)",w:"Jede Woche",w2:"Alle 2 Wochen",m:"Jeden Monat",y:"Jedes Jahr"};
 function repText(e){if(!e.rep)return"";const d=parse(e.date);const w=WD[(d.getDay()+6)%7];
-  const t={d:"Täglich",wd:"Jeden Werktag",w:"Jeden "+w,w2:"Jeden 2. "+w,m:"Jeden Monat am "+d.getDate()+".",y:"Jedes Jahr am "+d.getDate()+". "+MON[d.getMonth()]}[e.rep.f]||"";
+  const t=e.rep.f==="x"?rrText(e.rep.rr,d):{d:"Täglich",wd:"Jeden Werktag",w:"Jeden "+w,w2:"Jeden 2. "+w,m:"Jeden Monat am "+d.getDate()+".",y:"Jedes Jahr am "+d.getDate()+". "+MON[d.getMonth()]}[e.rep.f]||"";
   return t+(e.rep.until?` bis ${parse(e.rep.until).getDate()}. ${MON[parse(e.rep.until).getMonth()].slice(0,3)}.`:"")}
+/* Eigene Regel vom Anbieter (z. B. «jeden 2. Dienstag im Monat») als Text */
+function rrText(rr,d){const o={};String(rr||"").split(";").forEach(x=>{const[k,v]=x.split("=");o[(k||"").toUpperCase()]=v||""});
+  const iv=+(o.INTERVAL||1),DN={MO:"Mo",TU:"Di",WE:"Mi",TH:"Do",FR:"Fr",SA:"Sa",SU:"So"},nth=n=>n===-1?"letzten":n===-2?"vorletzten":n+".";
+  const by=(o.BYDAY||"").split(",").filter(Boolean),bm=/^([+-]?\d+)?(\w\w)$/;
+  const days=by.map(x=>{const m=bm.exec(x);return m?(m[1]?nth(+m[1])+" ":"")+DN[m[2]]:x}).join(", ");
+  const wk=by.length===5&&["MO","TU","WE","TH","FR"].every(x=>by.includes(x));
+  const mdays=()=>o.BYMONTHDAY?"am "+o.BYMONTHDAY.split(",").map(n=>+n<0?nth(+n)+" Tag":n+".").join(", "):"";
+  const inner=()=>o.BYSETPOS?"am "+nth(+o.BYSETPOS.split(",")[0])+" "+(wk?"Werktag":"von "+days):by.length?"am "+days:mdays()||"am "+d.getDate()+".";
+  switch(o.FREQ){
+    case"DAILY":return (iv>1?"Alle "+iv+" Tage":"Täglich")+(by.length?" ("+days+")":"");
+    case"WEEKLY":return (iv>1?"Alle "+iv+" Wochen":"Jede Woche")+(by.length?" am "+(wk?"Mo–Fr":days):"");
+    case"MONTHLY":return (iv>1?"Alle "+iv+" Monate":"Jeden Monat")+" "+inner();
+    case"YEARLY":{const ms=o.BYMONTH?o.BYMONTH.split(",").map(n=>MON[+n-1]).join(", "):MON[d.getMonth()];
+      return (iv>1?"Alle "+iv+" Jahre":"Jedes Jahr")+" "+(by.length||o.BYMONTHDAY?inner()+" im "+ms:"am "+d.getDate()+". "+ms)}}
+  return"Eigene Wiederholung"}
 function occurs(m,d){
   const st=parse(m.date);if(d<st)return false;const ds=ymd(d);
-  if(m.rep.until&&ds>m.rep.until)return false;if((m.rep.ex||[]).includes(ds))return false;
+  if(m.rep.until&&ds>m.rep.until)return false;if((m.rep.ex||[]).includes(ds)||(m.rep.ov||[]).includes(ds))return false;
+  if(m.rep.f==="x")return ds===m.date||(!!window.KK_rule&&window.KK_rule(m.rep.rr,st,d));
   const days=Math.round((d-st)/864e5),wd=(d.getDay()+6)%7;
   switch(m.rep.f){case"d":return true;case"wd":return wd<5;case"w":return days%7===0;case"w2":return days%14===0;
     case"m":return d.getDate()===st.getDate();case"y":return d.getDate()===st.getDate()&&d.getMonth()===st.getMonth()}return false}
@@ -1216,20 +1232,28 @@ function expanded(){
 function findEv(id){if(!id)return null;const d=S.ev.find(x=>x.id===id);if(d)return d;const k=id.lastIndexOf("@");if(k>0){const sid=id.slice(0,k),ds=id.slice(k+1),m=S.ev.find(x=>x.id===sid);if(m){const o={...m,id,date:ds,sid};if(m.edate&&m.edate>m.date)o.edate=ymd(addDays(parse(ds),Math.round((parse(m.edate)-parse(m.date))/864e5)));return o}}
   try{const x=(expCache&&expCache.list||[]).find(x=>x.id===id);if(x)return x}catch(_){}return null}
 /* Kopie eines Termins: ohne Serien- und ohne Abgleich-Kennung, sonst würde beim Hochladen das Original überschrieben */
-const SYNCKEYS=["rep","sid","rh","et","uid","rsig","gid","rcal","rnotes","lock","fromSeries","seg","full"];
+const SYNCKEYS=["rep","sid","rh","et","uid","rsig","gid","rcal","rnotes","lock","fromSeries","seg","full","pof","rid","rdate","rst"];
 const plain=e=>{const c={...e};SYNCKEYS.forEach(k=>delete c[k]);return c};
 /* Einzelnen Termin einer Serie herauslösen; gibt das neue, echte Objekt + Rückgängig zurück */
 function detach(o){
   if(!o.sid)return {ev:o,undo:null};
-  const m=S.ev.find(x=>x.id===o.sid);m.rep.ex=[...(m.rep.ex||[]),o.date];
+  const m=S.ev.find(x=>x.id===o.sid),mc=calOf(m.cal);
+  if(m.rh&&mc.acct&&mc.type!=="ms"){ // CalDAV (z. B. Infomaniak): bleibt als Ausnahme in derselben Serie (RECURRENCE-ID)
+    m.rep.ov=[...(m.rep.ov||[]),o.date];
+    const c={...plain(o),id:uid(),pof:m.id,rdate:o.date,rst:m.start,rh:m.rh,rcal:m.rcal,uid:m.uid};S.ev.push(c);
+    return {ev:c,undo:()=>{S.ev=S.ev.filter(x=>x.id!==c.id);m.rep.ov=m.rep.ov.filter(x=>x!==o.date)}}}
+  m.rep.ex=[...(m.rep.ex||[]),o.date];
   const c={...plain(o),id:uid()};S.ev.push(c);
   return {ev:c,undo:()=>{S.ev=S.ev.filter(x=>x.id!==c.id);m.rep.ex=m.rep.ex.filter(x=>x!==o.date)}};
 }
 function removeOcc(o){
+  if(o.pof){const m=S.ev.find(x=>x.id===o.pof),keep=S.ev.find(x=>x.id===o.id);S.ev=S.ev.filter(x=>x.id!==o.id);
+    if(m&&m.rep){m.rep.ov=(m.rep.ov||[]).filter(x=>x!==o.rdate);m.rep.ex=[...(m.rep.ex||[]),o.rdate]}
+    return()=>{if(keep)S.ev.push(keep);if(m&&m.rep){m.rep.ex=m.rep.ex.filter(x=>x!==o.rdate);m.rep.ov=[...(m.rep.ov||[]),o.rdate]}}}
   if(o.sid){const m=S.ev.find(x=>x.id===o.sid);m.rep.ex=[...(m.rep.ex||[]),o.date];return()=>{m.rep.ex=m.rep.ex.filter(x=>x!==o.date)}}
   const keep=S.ev.find(x=>x.id===o.id);S.ev=S.ev.filter(x=>x.id!==o.id);return()=>S.ev.push(keep)}
-function removeSeries(o){const m=S.ev.find(x=>x.id===(o.sid||o.id));S.ev=S.ev.filter(x=>x!==m);return()=>S.ev.push(m)}
-const ttl=e=>(e.hl?'<span class="star" aria-label="hervorgehoben">★</span> ':"")+esc(e.title)+(e.sid?' <span class="rp" aria-label="wiederkehrend">↻</span>':"");
+function removeSeries(o){const m=S.ev.find(x=>x.id===(o.sid||o.pof||o.id)),ovs=S.ev.filter(x=>m&&x.pof===m.id);S.ev=S.ev.filter(x=>x!==m&&!ovs.includes(x));return()=>S.ev.push(m,...ovs)}
+const ttl=e=>(e.hl?'<span class="star" aria-label="hervorgehoben">★</span> ':"")+esc(e.title)+(e.sid||e.pof?' <span class="rp" aria-label="wiederkehrend">↻</span>':"");
 const RO=id=>id==="plan"||!!(S.cals.find(c=>c.id===id)||{}).ro;
 /* Termin nur lesen: Kalender nur lesen oder Einzeltermin einer Serie mit Ausnahmen beim Anbieter */
 const ROe=e=>!!e&&(RO(e.cal)||!!e.lock);
@@ -1576,9 +1600,11 @@ let editing=null;
 let scope="one";
 function openEditor(e,ds){
   editing=e?e.id:null;scope="one";
-  const ser=e&&e.sid?S.ev.find(x=>x.id===e.sid):null;
+  const ser=e&&(e.sid||e.pof)?S.ev.find(x=>x.id===(e.sid||e.pof))||null:null;
+  const xo=$("ev-rep").querySelector('option[value="x"]');if(xo)xo.remove();
+  if(ser&&ser.rep&&ser.rep.f==="x")$("ev-rep").insertAdjacentHTML("beforeend",`<option value="x">${esc(rrText(ser.rep.rr,parse(ser.date)))}</option>`);
   $("ev-scope").hidden=!ser;$("ev-scope").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.scope==="one"));
-  $("ev-rep").value=ser?ser.rep.f:"";$("ev-until").value=ser&&ser.rep.until||"";$("ev-untilw").hidden=true;
+  $("ev-rep").value=ser&&ser.rep?ser.rep.f:"";$("ev-until").value=ser&&ser.rep.until||"";$("ev-untilw").hidden=true;
   $("ev-rep").disabled=!!ser;const ro=!!(e&&ROe(e));
   $("ev-h").textContent=e?"Bearbeiten":"Neuer Termin";
   $("ev-cal").innerHTML=S.cals.filter(c=>!RO(c.id)).map(c=>`<option value="${c.id}">${esc(c.name)} (${esc(c.src)})</option>`).join("");
@@ -1753,8 +1779,8 @@ $("ev-morebtn").onclick=()=>{$("ev-more").hidden=false;$("ev-morebtn").hidden=tr
 $("ev-cancel").onclick=()=>{evSaved=true;$("ev-scrim").hidden=true};
 $("ev-del").onclick=function(){
   if(!this.classList.contains("armed")){this.classList.add("armed");this.textContent="Wirklich löschen?";return}
-  const o=findEv(editing),un=(o.sid&&scope==="all")?removeSeries(o):removeOcc(o);save();$("ev-scrim").hidden=true;render();
-  toast(o.sid?(scope==="all"?"Serie gelöscht":"Dieser Termin gelöscht"):"Termin gelöscht",o.title,5000,{label:"Rückgängig",fn:()=>{un();save();render()}});
+  const o=findEv(editing),un=((o.sid||o.pof)&&scope==="all")?removeSeries(o):removeOcc(o);save();$("ev-scrim").hidden=true;render();
+  toast(o.sid||o.pof?(scope==="all"?"Serie gelöscht":"Dieser Termin gelöscht"):"Termin gelöscht",o.title,5000,{label:"Rückgängig",fn:()=>{un();save();render()}});
 };
 /* Neuer Termin versehentlich geschlossen (daneben getippt, gewischt, Zurück): Entwurf zurückholen können */
 let evSaved=false;
@@ -1773,10 +1799,10 @@ $("ev-form").addEventListener("submit",ev=>{
   const data={edate:ed,title:(qp&&qp.found.length?qp.title:$("ev-title").value.trim())||"Ohne Titel",cal:$("ev-cal").value,date:$("ev-date").value,allDay,start:allDay?"":s,end:allDay?"":e,loc:$("ev-loc").value.trim(),notes:$("ev-notes").value.trim(),remind:+$("ev-remind").value,remind2:+$("ev-remind2").value>=0?+$("ev-remind2").value:undefined};
   const rf=$("ev-rep").value,until=$("ev-until").value||null;
   if(editing){const o=findEv(editing);if(ROe(o))data.remindLocal=true;
-    if(o.sid&&scope==="all"){const m=S.ev.find(x=>x.id===o.sid);const shift=Math.round((parse(data.date)-parse(o.date))/864e5);
-      Object.assign(m,{...data,date:ymd(addDays(parse(m.date),shift)),edate:data.edate?ymd(addDays(parse(data.edate),Math.round((parse(m.date)-parse(o.date))/864e5))):null});m.rep={...m.rep,f:rf||m.rep.f,until};if(!rf){delete m.rep}}
+    if((o.sid||o.pof)&&scope==="all"){const m=S.ev.find(x=>x.id===(o.sid||o.pof)),od=o.pof?o.rdate:o.date,oldF=m.rep&&m.rep.f;const shift=Math.round((parse(data.date)-parse(od))/864e5);
+      Object.assign(m,{...data,date:ymd(addDays(parse(m.date),shift)),edate:data.edate?ymd(addDays(parse(data.edate),Math.round((parse(m.date)-parse(od))/864e5))):null});m.rep={...m.rep,f:rf||m.rep.f,until};if(rf&&rf!==oldF){delete m.rep.rr;delete m.rep.cnt;delete m.rep.cntU}if(!rf){delete m.rep}}
     else if(o.sid){const dt=detach(o);Object.assign(dt.ev,data)}
-    else{const real=S.ev.find(x=>x.id===o.id);Object.assign(real,data);if(rf)real.rep={f:rf,until,ex:(real.rep&&real.rep.ex)||[]};else delete real.rep}}
+    else{const real=S.ev.find(x=>x.id===o.id);Object.assign(real,data);if(real.pof){}else if(rf)real.rep={f:rf,until,ex:(real.rep&&real.rep.ex)||[]};else delete real.rep}}
   let newId=editing;if(!editing){newId=uid();S.ev.push({id:newId,...data,...(rf?{rep:{f:rf,until,ex:[]}}:{})})}
   if(!data.edate){for(const x of S.ev)if(x.edate===null)delete x.edate}
   const cf=confText(conflicts({...data,id:newId},newId));
@@ -2132,9 +2158,9 @@ function openActions(el,ev){
     $("act-dot").style.background=c.color;const sh=$("act-scrim").querySelector(".sheet");sh.style.setProperty("--c",c.color);sh.style.setProperty("--ci",ink(c.color));$("act-cal").textContent=c.name;$("act-title").textContent=ev.title;
     $("act-sub").textContent=`${fmtDay(parse(ev.date))}${ev.allDay?" · ganztägig":`, ${ev.start}–${ev.end}`}${ev.loc?" · "+ev.loc:""}`;
     document.querySelectorAll("#act-scrim [data-act]").forEach(b=>b.disabled=ro&&!["copy","edit","hl"].includes(b.dataset.act));
-    const d=$("act-del");d.classList.remove("armed");d.querySelector("span").textContent=ev.sid?"Diesen löschen":"Löschen";
-    const da=$("act-delall");da.hidden=!ev.sid;da.classList.remove("armed");da.querySelector("span").textContent="Serie löschen";
-    if(ev.sid)$("act-sub").textContent+=" · ↻ "+repText(S.ev.find(x=>x.id===ev.sid));
+    const d=$("act-del");d.classList.remove("armed");d.querySelector("span").textContent=ev.sid||ev.pof?"Diesen löschen":"Löschen";
+    const da=$("act-delall");da.hidden=!(ev.sid||ev.pof);da.classList.remove("armed");da.querySelector("span").textContent="Serie löschen";
+    if(ev.sid||ev.pof){const m=S.ev.find(x=>x.id===(ev.sid||ev.pof));if(m)$("act-sub").textContent+=" · ↻ "+repText(m)}
     $("act-note").hidden=!ro;$("act-hl").querySelector("span").textContent=ev.hl?"Nicht mehr hervorheben":"Hervorheben";$("act-hl").classList.toggle("on",!!ev.hl);$("act-scrim").hidden=false;
   },0);
 }
@@ -2296,7 +2322,7 @@ function openPeek(el,ev){
   let b=row("time",ev.allDay?esc(fmtDay(parse(ev.date)))+(md?" – "+esc(fmtDay(parse(ev.edate))):"")+"<br>ganztägig"
     :md?esc(fmtDay(parse(ev.date)))+", "+esc(ev.start)+" Uhr<br>bis "+esc(fmtDay(parse(ev.edate)))+", "+esc(ev.end)+" Uhr"
     :esc(fmtDay(parse(ev.date)))+"<br>"+esc(ev.start)+" – "+esc(ev.end)+" Uhr");
-  if(ev.sid){const m=S.ev.find(x=>x.id===ev.sid);if(m)b+=row("rep",esc(repText(m)))}
+  if(ev.sid||ev.pof){const m=S.ev.find(x=>x.id===(ev.sid||ev.pof));if(m)b+=row("rep",esc(repText(m)))}
   const MEET=/teams\.(microsoft|live)|zoom\.us|meet\.google|webex/i,links=[...new Set([ev.url,...findLinks(ev.loc),...findLinks(ev.notes)].filter(Boolean))].sort((x,y)=>(x===ev.url?-2:MEET.test(x)?-1:/^mailto:/.test(x)?1:0)-(y===ev.url?-2:MEET.test(y)?-1:/^mailto:/.test(y)?1:0));
   if(links.length){const u=links[0];b=`<button type="button" class="pk-link" data-url="${esc(u)}">${IC.link}<div class="pk-lt"><span>${linkName(u)}</span><small>${esc(u.replace(/^https?:\/\//,""))}</small></div></button>`+b}
   if(ev.loc)b+=row("loc",linkify(ev.loc));
@@ -2345,7 +2371,7 @@ $("act-scrim").addEventListener("click",e=>{
     toast("Kopiert auf morgen",fmtDay(parse(c.date)),5000,{label:"Rückgängig",fn:()=>{S.ev=S.ev.filter(x=>x.id!==c.id);save();render()}})}
   else if(a==="del"){if(!b.classList.contains("armed")){b.classList.add("armed");b.querySelector("span").textContent="Wirklich löschen?";return}
     const un=removeOcc(ev);save();$("act-scrim").hidden=true;render();
-    toast(ev.sid?"Dieser Termin gelöscht":"Termin gelöscht",ev.title,5000,{label:"Rückgängig",fn:()=>{un();save();render()}})}
+    toast(ev.sid||ev.pof?"Dieser Termin gelöscht":"Termin gelöscht",ev.title,5000,{label:"Rückgängig",fn:()=>{un();save();render()}})}
   else if(a==="delall"){if(!b.classList.contains("armed")){b.classList.add("armed");b.querySelector("span").textContent="Ganze Serie löschen?";return}
     const un=removeSeries(ev);save();$("act-scrim").hidden=true;render();
     toast("Serie gelöscht",ev.title,5000,{label:"Rückgängig",fn:()=>{un();save();render()}})}

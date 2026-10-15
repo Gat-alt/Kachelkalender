@@ -50,7 +50,8 @@ async function setup(srv) {
 }
 const evs = pg => pg.evaluate(() => window.KK_TEST.K().S.ev.map(e => ({ id: e.id, t: e.title, d: e.date, s: e.start, cal: e.cal, rh: e.rh || null, rep: e.rep && e.rep.f, lock: !!e.lock })));
 const sync = async pg => { await pg.evaluate(() => window.KK_TEST.sync(false)); await pg.waitForTimeout(600); };
-const onServer = srv => [...srv.res.values()].map(x => (x.ics.match(/SUMMARY:(.*)/) || [])[1] + "@" + (x.ics.split("BEGIN:VEVENT")[1].match(/DTSTART[^:]*:(\d{8})/) || [])[1]);
+const onServer = srv => [...srv.res.values()].flatMap(x => x.ics.split("BEGIN:VEVENT").slice(1).map(v => (v.match(/SUMMARY:(.*)/) || [])[1].trim() + "@" + (v.match(/\nDTSTART[^:]*:(\d{8})/) || [])[1]));
+const ics = (srv, href) => (srv.res.get(href) || {}).ics || "";
 const openCard = (pg, id) => pg.evaluate(id => document.querySelector(`#view [data-ev="${id}"]`).click(), id);
 
 console.log("Abgleich mit CalDAV (Infomaniak)");
@@ -93,19 +94,85 @@ console.log("Abgleich mit CalDAV (Infomaniak)");
   check("Kopie eines ZHAW-Termins wird zu Infomaniak hochgeladen", onServer(srv).some(x => x.startsWith("Vorlesung@")), JSON.stringify(onServer(srv)));
   await pg.context().close();
 }
-// D) Serie mit Ausnahme beim Anbieter: Einzeltermin ist geschützt, nichts verschwindet
+// D) Serie mit Ausnahme beim Anbieter: alles bearbeitbar, Ausnahme bleibt Teil der Serie
 {
   const srv = server();
   srv.put("/cal/ex.ics", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:ex-1\r\nSUMMARY:Kurs\r\nDTSTART;TZID=Europe/Zurich:20261001T100000\r\nDTEND;TZID=Europe/Zurich:20261001T110000\r\nRRULE:FREQ=WEEKLY\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:ex-1\r\nRECURRENCE-ID;TZID=Europe/Zurich:20261015T100000\r\nSUMMARY:Kurs (anderer Raum)\r\nDTSTART;TZID=Europe/Zurich:20261015T120000\r\nDTEND;TZID=Europe/Zurich:20261015T130000\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
   const pg = await setup(srv);
-  const before = (await evs(pg)).filter(e => e.t.startsWith("Kurs")).length;
-  const id = await pg.evaluate(() => window.KK_TEST.K().S.ev.find(e => e.title === "Kurs" && e.date === "2026-10-08").id);
-  await openCard(pg, id); await pg.waitForTimeout(450); await pg.click("#pk-edit"); await pg.waitForTimeout(400);
-  check("Gesperrter Einzeltermin: Titel nicht änderbar", await pg.evaluate(() => document.getElementById("ev-title").disabled));
-  check("…kein Löschen", await pg.evaluate(() => document.getElementById("ev-del").hidden));
+  const l0 = await evs(pg);
+  check("Serie mit Ausnahme: nichts gesperrt", l0.filter(e => e.t.startsWith("Kurs")).every(e => !e.lock), JSON.stringify(l0));
+  const shown = await pg.evaluate(() => window.KK_TEST.K().expanded().filter(e => e.title.startsWith("Kurs") && e.date >= "2026-10-08" && e.date <= "2026-10-22").map(e => e.date + " " + e.title).sort());
+  check("…am 15. die Ausnahme statt dem Serientermin", JSON.stringify(shown) === JSON.stringify(["2026-10-08 Kurs", "2026-10-15 Kurs (anderer Raum)", "2026-10-22 Kurs"]), JSON.stringify(shown));
+  // Ausnahme bearbeiten
+  const xid = l0.find(e => e.t === "Kurs (anderer Raum)").id;
+  await pg.evaluate(() => window.KK_TEST.K().goto("2026-10-15", "grid")); await pg.waitForTimeout(400);
+  await openCard(pg, xid); await pg.waitForTimeout(450); await pg.click("#pk-edit"); await pg.waitForTimeout(400);
+  check("…Ausnahme: Titel änderbar", !(await pg.evaluate(() => document.getElementById("ev-title").disabled)));
+  await pg.fill("#ev-title", "Kurs Raum B");
   await pg.evaluate(() => document.getElementById("ev-form").requestSubmit()); await pg.waitForTimeout(2600); await sync(pg);
-  const after = (await evs(pg)).filter(e => e.t.startsWith("Kurs")).length;
-  check("…und nach dem Abgleich fehlt kein Termin", after === before && before > 5, before + " → " + after);
+  const t = ics(srv, "/cal/ex.ics");
+  check("…beim Anbieter geändert, als Ausnahme derselben Serie", /SUMMARY:Kurs Raum B/.test(t) && /RECURRENCE-ID/.test(t) && /RRULE:FREQ=WEEKLY/.test(t) && srv.res.size === 1, t);
+  // ein anderes Datum nur einmal ändern → neue Ausnahme in derselben Ressource
+  await pg.evaluate(() => window.KK_TEST.K().goto("2026-10-08", "grid")); await pg.waitForTimeout(400);
+  const occ = await pg.evaluate(() => [...document.querySelectorAll("#view [data-ev]")].map(x => x.dataset.ev).find(x => x.includes("@2026-10-08")));
+  await openCard(pg, occ); await pg.waitForTimeout(450); await pg.click("#pk-edit"); await pg.waitForTimeout(400);
+  await pg.fill("#ev-title", "Kurs fällt aus?");
+  await pg.evaluate(() => document.getElementById("ev-form").requestSubmit()); await pg.waitForTimeout(2600); await sync(pg);
+  const t2 = ics(srv, "/cal/ex.ics");
+  check("…zweite Ausnahme ebenfalls in der Serie", (t2.match(/RECURRENCE-ID/g) || []).length === 2 && /SUMMARY:Kurs fällt aus\?/.test(t2) && srv.res.size === 1, t2);
+  const after = await pg.evaluate(() => window.KK_TEST.K().expanded().filter(e => e.title.startsWith("Kurs") && e.date >= "2026-10-08" && e.date <= "2026-10-22").map(e => e.date + " " + e.title).sort());
+  check("…nach dem Abgleich alles richtig da", JSON.stringify(after) === JSON.stringify(["2026-10-08 Kurs fällt aus?", "2026-10-15 Kurs Raum B", "2026-10-22 Kurs"]), JSON.stringify(after));
+  // ganze Serie von einer Ausnahme aus löschen
+  const x2 = (await evs(pg)).find(e => e.t === "Kurs Raum B").id;
+  await pg.evaluate(() => window.KK_TEST.K().goto("2026-10-15", "grid")); await pg.waitForTimeout(400);
+  await openCard(pg, x2); await pg.waitForTimeout(450); await pg.click("#pk-edit"); await pg.waitForTimeout(400);
+  await pg.click('#ev-scope [data-scope="all"]'); await pg.click("#ev-del"); await pg.click("#ev-del"); await pg.waitForTimeout(2600); await sync(pg);
+  check("…ganze Serie gelöscht, auch beim Anbieter", srv.res.size === 0 && !(await evs(pg)).some(e => e.t.startsWith("Kurs")), JSON.stringify(onServer(srv)));
+  check("keine JS-Fehler", !pg.errs.length, pg.errs.join(" | "));
+  await pg.context().close();
+}
+// G) Eigene Regel «jeden 2. Dienstag im Monat»: anzeigen, bearbeiten, Regel bleibt
+{
+  const srv = server(); srv.put("/cal/m.ics", VEV("m-1", "Teamsitzung", "20260908T090000", "20260908T100000", "RRULE:FREQ=MONTHLY;BYDAY=2TU\r\n"));
+  const pg = await setup(srv);
+  const days = await pg.evaluate(() => window.KK_TEST.K().expanded().filter(e => e.title === "Teamsitzung").map(e => e.date).filter(d => d < "2026-12-31"));
+  check("2. Dienstag: richtige Tage", JSON.stringify(days) === JSON.stringify(["2026-09-08", "2026-10-13", "2026-11-10", "2026-12-08"]), JSON.stringify(days));
+  const m = (await evs(pg)).find(e => e.t === "Teamsitzung");
+  check("…als bearbeitbare Serie", m.rep === "x" && !m.lock, JSON.stringify(m));
+  const occ = (await pg.evaluate(() => window.KK_TEST.K().expanded().find(e => e.title === "Teamsitzung" && e.date === "2026-10-13").id));
+  await pg.evaluate(() => window.KK_TEST.K().goto("2026-10-13", "grid")); await pg.waitForTimeout(400);
+  await openCard(pg, occ); await pg.waitForTimeout(450);
+  const sub = await pg.evaluate(() => document.getElementById("pk-body").textContent);
+  check("…Text «Jeden Monat am 2. Di»", /Jeden Monat am 2\. Di/.test(sub), sub.slice(0, 200));
+  await pg.click("#pk-edit"); await pg.waitForTimeout(400);
+  await pg.click('#ev-scope [data-scope="all"]');
+  check("…Regel im Formular gewählt", (await pg.evaluate(() => document.getElementById("ev-rep").value)) === "x");
+  await pg.fill("#ev-title", "Teamsitzung neu"); await pg.evaluate(() => { document.getElementById("ev-start").value = "09:30"; document.getElementById("ev-end").value = "10:30"; });
+  await pg.evaluate(() => document.getElementById("ev-form").requestSubmit()); await pg.waitForTimeout(2600); await sync(pg);
+  const t = ics(srv, "/cal/m.ics");
+  check("…ganze Serie beim Anbieter geändert, Regel bleibt", /SUMMARY:Teamsitzung neu/.test(t) && /RRULE:FREQ=MONTHLY;BYDAY=2TU\r\n/.test(t) && /DTSTART;TZID=Europe\/Zurich:20260908T093000/.test(t), t);
+  // einen Termin löschen
+  const occ2 = (await pg.evaluate(() => window.KK_TEST.K().expanded().find(e => e.title === "Teamsitzung neu" && e.date === "2026-11-10").id));
+  await pg.evaluate(() => window.KK_TEST.K().goto("2026-11-10", "grid")); await pg.waitForTimeout(400);
+  await openCard(pg, occ2); await pg.waitForTimeout(450); await pg.click("#pk-edit"); await pg.waitForTimeout(400);
+  await pg.click("#ev-del"); await pg.click("#ev-del"); await pg.waitForTimeout(2600); await sync(pg);
+  check("…einzelner Termin gelöscht (EXDATE)", /EXDATE[^:]*:20261110/.test(ics(srv, "/cal/m.ics")), ics(srv, "/cal/m.ics"));
+  const d2 = await pg.evaluate(() => window.KK_TEST.K().expanded().filter(e => e.title === "Teamsitzung neu").map(e => e.date).filter(d => d < "2026-12-31"));
+  check("…und in der App weg", JSON.stringify(d2) === JSON.stringify(["2026-09-08", "2026-10-13", "2026-12-08"]), JSON.stringify(d2));
+  check("keine JS-Fehler", !pg.errs.length, pg.errs.join(" | "));
+  await pg.context().close();
+}
+// H) Serie mit fester Anzahl (COUNT) bleibt beim Bearbeiten erhalten
+{
+  const srv = server(); srv.put("/cal/c.ics", VEV("c-1", "Physio", "20261005T170000", "20261005T173000", "RRULE:FREQ=WEEKLY;BYDAY=MO,WE;COUNT=6\r\n"));
+  const pg = await setup(srv);
+  const days = await pg.evaluate(() => window.KK_TEST.K().expanded().filter(e => e.title === "Physio").map(e => e.date));
+  check("COUNT=6: genau sechs Termine", JSON.stringify(days) === JSON.stringify(["2026-10-05", "2026-10-07", "2026-10-12", "2026-10-14", "2026-10-19", "2026-10-21"]), JSON.stringify(days));
+  await pg.evaluate(() => { const K = window.KK_TEST.K(); const e = K.S.ev.find(x => x.title === "Physio"); e.loc = "Praxis Nord"; K.save(); });
+  await pg.waitForTimeout(2600); await sync(pg);
+  const t = ics(srv, "/cal/c.ics");
+  check("…nach dem Ändern: COUNT=6 beim Anbieter", /RRULE:FREQ=WEEKLY;BYDAY=MO,WE;COUNT=6/.test(t) && /LOCATION:Praxis Nord/.test(t), t);
+  check("keine JS-Fehler", !pg.errs.length, pg.errs.join(" | "));
   await pg.context().close();
 }
 // E) Termin nach «Persönlich (nur auf diesem Gerät)» verschieben → beim Anbieter gelöscht
