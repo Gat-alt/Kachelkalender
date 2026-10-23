@@ -730,10 +730,11 @@ body.tdragging,body.tdragging *{cursor:grabbing!important;user-select:none!impor
 .main{padding-top:env(safe-area-inset-top,0px);background:var(--bg)}
 /* «Ganze Woche» auf dem Handy: gut sichtbarer Knopf unten links, ein Tipp hin und zurück */
 @media (max-width:860px) and (orientation:portrait){
-  #tfit{position:fixed;left:12px;bottom:calc(66px + env(safe-area-inset-bottom,0px));z-index:14;height:44px;padding:0 14px;border-radius:14px;gap:7px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);font-weight:600;font-size:.88em;color:var(--fg);animation:pop .2s ease both}
-  #tfit .tfl{display:inline!important}
-  #tfit svg{width:18px;height:18px}
-  #tfit.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+  #tfit{position:fixed;left:12px;bottom:calc(66px + env(safe-area-inset-bottom,0px));z-index:14;width:46px;height:46px;padding:0;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--fg);animation:pop .2s ease both;touch-action:none;user-select:none;-webkit-user-select:none}
+#tfit .tfl{display:none!important}
+#tfit svg{width:20px;height:20px}
+#tfit.drag{transform:scale(1.12);box-shadow:0 10px 28px rgba(0,0,0,.35);transition:none;animation:none}
+#tfit.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
 }
 
 /* Kacheln Stufe «Ganze Woche»: zwei Reihen pro Bildschirm, einmal scrollen */
@@ -2448,7 +2449,21 @@ $("fs-btn").onclick=async()=>{
     try{await screen.orientation.lock("landscape")}catch(e){}
   }catch(e){toast("Vollbild geht hier nicht","Dieses Gerät erlaubt kein Vollbild für den Kalender.",5000)}
 };
-$("tfit").onclick=()=>{S.set.tfit=(tfMode()+1)%3;save();render("f");$("view").scrollTop=0;const tb=document.querySelector(".topbar");if(tb)tb.style.marginTop="0px"};
+$("tfit").onclick=e=>{if($("tfit")._dragged){$("tfit")._dragged=false;return}S.set.tfit=(tfMode()+1)%3;save();render("f");$("view").scrollTop=0;const tb=document.querySelector(".topbar");if(tb)tb.style.marginTop="0px";toast(["Grosse Kacheln","Ganze Woche","Alles auf einen Blick"][tfMode()],"Halten und ziehen, um den Knopf zu verschieben",1600)};
+/* Knopf verschiebbar: ziehen, loslassen, bleibt dort (gespeichert) */
+function tfitPlace(){const b=$("tfit"),p=S.set.tfitPos;if(!p){b.style.left=b.style.top=b.style.right=b.style.bottom="";return}
+  const W=innerWidth,H=innerHeight,x=Math.min(Math.max(6,p.x*W-23),W-52),y=Math.min(Math.max(60,p.y*H-23),H-52);
+  b.style.left=x+"px";b.style.top=y+"px";b.style.right="auto";b.style.bottom="auto"}
+(()=>{const b=$("tfit");let st=null;
+  b.addEventListener("pointerdown",e=>{st={x:e.clientX,y:e.clientY,id:e.pointerId,mv:false}});
+  b.addEventListener("pointermove",e=>{if(!st||e.pointerId!==st.id)return;
+    if(!st.mv&&Math.hypot(e.clientX-st.x,e.clientY-st.y)<8)return;
+    if(!st.mv){st.mv=true;b.classList.add("drag");try{b.setPointerCapture(e.pointerId)}catch(_){}}
+    e.preventDefault();S.set.tfitPos={x:e.clientX/innerWidth,y:e.clientY/innerHeight};tfitPlace()});
+  const end=e=>{if(!st)return;if(st.mv){b.classList.remove("drag");b._dragged=true;setTimeout(()=>b._dragged=false,350);save()}st=null};
+  b.addEventListener("pointerup",end);b.addEventListener("pointercancel",end);
+  b.addEventListener("dblclick",e=>{e.preventDefault()});
+  addEventListener("resize",tfitPlace);tfitPlace()})();
 $("fab").onclick=()=>newAt(view==="day"?ymd(cursor):ymd(new Date()));
 $("menu").onclick=()=>{const tb=document.querySelector(".topbar");if(tb)document.documentElement.style.setProperty("--side-top",Math.round(tb.getBoundingClientRect().bottom+4)+"px");$("side").classList.toggle("open")};
 /* Seitenleiste: daneben tippen, nach links wischen oder Zurück-Taste schliesst sie sofort */
