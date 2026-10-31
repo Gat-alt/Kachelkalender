@@ -159,6 +159,23 @@ console.log("Termine anlegen und ändern");
   await pg.fill("#ev-texact", "08:07"); await pg.dispatchEvent("#ev-texact", "change");
   t = await pg.evaluate(() => document.getElementById("ev-start").value);
   check("Genaue Uhrzeit eintippen", t === "08:07", t);
+  // Von … bis frei eintippen: Beginn bestätigen springt zum Ende
+  await pg.evaluate(() => { document.getElementById("ev-tpick").hidden = true; });
+  await pg.click("#ev-tbtn"); await pg.fill("#ev-texact", "1"); await pg.press("#ev-texact", "Enter");
+  let w = await pg.evaluate(() => [document.getElementById("ev-start").value, document.getElementById("ev-tpwhat").textContent, document.activeElement.id]);
+  check("Beginn eintippen (1 → 01:00), dann Ende wählen", w[0] === "01:00" && w[1] === "Ende wählen" && w[2] === "ev-texact", w.join(" | "));
+  await pg.fill("#ev-texact", "25"); await pg.press("#ev-texact", "Enter");
+  w = await pg.evaluate(() => [document.getElementById("ev-terr").hidden, document.getElementById("ev-end").value]);
+  check("Ungültige Uhrzeit wird gemeldet", w[0] === false && w[1] !== "", w.join(" | "));
+  await pg.fill("#ev-texact", "1345"); await pg.click("#ev-tok");
+  w = await pg.evaluate(() => [document.getElementById("ev-start").value, document.getElementById("ev-end").value, document.getElementById("ev-tpick").hidden]);
+  check("Ende eintippen (1345 → 13:45)", w[0] === "01:00" && w[1] === "13:45" && w[2] === true, w.join(" | "));
+  for (const [inp, out] of [["9.30", "09:30"], ["930", "09:30"], ["9 3", "09:30"], ["23:05", "23:05"]]) {
+    await pg.click("#ev-tbtn"); await pg.fill("#ev-texact", inp); await pg.press("#ev-texact", "Enter");
+    const v = await pg.evaluate(() => document.getElementById("ev-start").value);
+    check(`Eingabe «${inp}» → ${out}`, v === out, v);
+    await pg.evaluate(() => { document.getElementById("ev-tpick").hidden = true; });
+  }
   await closeAll(pg);
 
   // Über Mitternacht
