@@ -150,6 +150,9 @@ button{cursor:pointer}
 .daytasks .dtask:first-child{border-top:0;margin-top:0}
 .bar,.chip,.mb{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
 .bar .n{hyphens:auto;-webkit-hyphens:auto;overflow-wrap:break-word}
+[data-drop].rsel{box-shadow:inset 0 0 0 2px var(--accent);background-color:color-mix(in srgb,var(--accent) 22%,var(--surface))}
+body.rselecting{-webkit-user-select:none;user-select:none}
+body.rselecting #view{touch-action:none}
 [data-drop].drop-over{outline:2px dashed var(--accent);outline-offset:-2px;background-color:color-mix(in srgb,var(--accent) 10%,var(--surface))}
 .dragging-src{opacity:.35}
 .ghost{position:fixed;z-index:60;pointer-events:none;box-shadow:var(--shadow);transform:rotate(-2deg) scale(1.03);opacity:.95;border-radius:8px}
@@ -2095,7 +2098,7 @@ document.addEventListener("pointerdown",e=>{
 });
 document.addEventListener("pointermove",e=>{if(!sel||sel.touch)return;
   if(!sel.on){if(Math.hypot(e.clientX-sel.x0,e.clientY-sel.y0)>6)selStart();else return}
-  e.preventDefault();selMove(e.clientY)});
+  e.preventDefault();if(otherDay(e.clientX,e.clientY)){selToRange(e.clientX,e.clientY,false);return}selMove(e.clientY)});
 document.addEventListener("pointerup",e=>{if(sel&&!sel.touch)selEnd(false)});
 /* Finger: kurz halten (Vibration), dann ziehen = Dauer */
 document.addEventListener("touchstart",e=>{
@@ -2106,11 +2109,50 @@ document.addEventListener("touchstart",e=>{
 },{passive:true});
 document.addEventListener("touchmove",e=>{if(!sel||!sel.touch)return;const t=e.touches[0];
   if(!sel.on){if(Math.hypot(t.clientX-sel.x0,t.clientY-sel.y0)>10){clearTimeout(sel.timer);sel=null}return}
-  if(e.cancelable)e.preventDefault();sel.y=t.clientY;selMove(t.clientY)},{passive:false});
+  if(e.cancelable)e.preventDefault();
+  if(otherDay(t.clientX,t.clientY)){selToRange(t.clientX,t.clientY,true);return}
+  sel.y=t.clientY;selMove(t.clientY)},{passive:false});
 document.addEventListener("touchend",e=>{if(!sel||!sel.touch)return;if(sel.on){e.preventDefault();selEnd(false)}else{clearTimeout(sel.timer);sel=null}},{passive:false});
 document.addEventListener("touchcancel",()=>{if(sel&&sel.touch){if(sel.on)selEnd(false);else{clearTimeout(sel.timer);sel=null}}});
+/* Mehrere Tage: gedrückt halten und über die Tage ziehen = ganztägiger Termin über diese Tage.
+   Monat und Kacheln: kurz halten (Vibration), dann ziehen. Woche / Mo–Fr: wie beim Aufziehen der Uhrzeit,
+   sobald der Finger in einen anderen Tag wandert, wird daraus eine Auswahl über Tage. */
+let rs=null,rp=null;
+const dayAt=(x,y)=>{const el=document.elementFromPoint(x,y);const t=el&&el.closest&&el.closest("#view [data-drop]");return t?t.dataset.drop:null};
+const otherDay=(x,y)=>{if(!sel||!sel.on)return false;const d=dayAt(x,y);return !!d&&d!==sel.col.dataset.drop};
+function selToRange(x,y,touch){const z=sel;sel=null;clearTimeout(z.timer);if(z.blk)z.blk.remove();document.body.classList.remove("selecting");rsStart(z.col.dataset.drop,x,y,touch)}
+function rsShow(){const a=rs.a<rs.b?rs.a:rs.b,b=rs.a<rs.b?rs.b:rs.a;
+  document.querySelectorAll("#view [data-drop]").forEach(el=>{const d=el.dataset.drop;el.classList.toggle("rsel",d>=a&&d<=b)});
+  const n=Math.round((parse(b)-parse(a))/864e5)+1;rs.tip.textContent=n>1?`${parse(a).getDate()}.–${parse(b).getDate()}. · ${n} Tage`:"1 Tag"}
+function rsStart(a,x,y,touch){rs={a,b:a,touch};document.body.classList.add("selecting","rselecting");
+  const tip=document.createElement("div");tip.className="ghost-time";document.body.appendChild(tip);rs.tip=tip;rsMove(x,y);
+  try{navigator.vibrate&&navigator.vibrate(12)}catch(_){}}
+function rsMove(x,y){const d=dayAt(x,y);if(d&&d!==rs.b){rs.b=d;try{navigator.vibrate&&navigator.vibrate(5)}catch(_){}}
+  rsShow();rs.tip.style.left=Math.min(x+14,innerWidth-130)+"px";rs.tip.style.top=Math.max(y-40,4)+"px"}
+function rsEnd(cancel){const z=rs;rs=null;if(!z)return;document.body.classList.remove("selecting","rselecting");z.tip.remove();
+  document.querySelectorAll("#view .rsel").forEach(el=>el.classList.remove("rsel"));
+  justDragged=true;setTimeout(()=>justDragged=false,350);if(cancel)return;
+  const a=z.a<z.b?z.a:z.b,b=z.a<z.b?z.b:z.a;
+  newAt(a);if(a!==b){$("ev-allday").checked=true;$("ev-edate").value=b;syncAllday()}}
+/* Startfläche: ein Tag in Monat/Kacheln (nicht auf einem Termin); das Zeitraster hat seine eigene Geste oben */
+const rsCell=t=>{if(!t||!t.closest||!t.closest("#view")||t.closest("[data-ev],[data-rsz],input,.tblock,.more"))return null;const c=t.closest("[data-drop]");return c&&!c.dataset.grid?c:null};
+document.addEventListener("touchstart",e=>{if(rp){clearTimeout(rp.timer);rp=null}
+  if(e.touches.length!==1){if(rs)rsEnd(true);return}
+  if(pending||rsz||drag||placing||tdrag||sel||rs)return;const c=rsCell(e.target);if(!c)return;const t=e.touches[0];
+  rp={a:c.dataset.drop,x0:t.clientX,y0:t.clientY,x:t.clientX,y:t.clientY};
+  rp.timer=setTimeout(()=>{const p=rp;rp=null;if(p&&!pinch&&!drag&&!sel)rsStart(p.a,p.x,p.y,true)},300)},{passive:true});
+document.addEventListener("touchmove",e=>{
+  if(rp&&!rp.mouse){const t=e.touches[0];rp.x=t.clientX;rp.y=t.clientY;if(Math.hypot(t.clientX-rp.x0,t.clientY-rp.y0)>10){clearTimeout(rp.timer);rp=null}return}
+  if(!rs||!rs.touch)return;if(e.cancelable)e.preventDefault();const t=e.touches[0];rsMove(t.clientX,t.clientY)},{passive:false});
+document.addEventListener("touchend",e=>{if(rp&&!rp.mouse){clearTimeout(rp.timer);rp=null;return}if(rs&&rs.touch){if(e.cancelable)e.preventDefault();rsEnd(false)}},{passive:false});
+document.addEventListener("touchcancel",()=>{if(rp&&!rp.mouse){clearTimeout(rp.timer);rp=null}if(rs&&rs.touch)rsEnd(false)});
+/* Maus: in Monat/Kacheln von einem Tag in einen anderen ziehen */
+document.addEventListener("pointerdown",e=>{if(e.pointerType!=="mouse"||e.button>0||pending||rsz||drag||placing||tdrag||rs)return;const c=rsCell(e.target);if(c)rp={a:c.dataset.drop,mouse:true}});
+document.addEventListener("pointermove",e=>{if(rs&&!rs.touch){e.preventDefault();rsMove(e.clientX,e.clientY);return}
+  if(rp&&rp.mouse){const d=dayAt(e.clientX,e.clientY);if(d&&d!==rp.a){const p=rp;rp=null;rsStart(p.a,e.clientX,e.clientY,false)}}});
+document.addEventListener("pointerup",()=>{if(rp&&rp.mouse)rp=null;if(rs&&!rs.touch)rsEnd(false)});
 /* Langes Drücken im Kalender: kein Kontextmenü, keine Textmarkierung */
-document.addEventListener("contextmenu",e=>{if(e.target.closest&&e.target.closest(".col"))e.preventDefault()});
+document.addEventListener("contextmenu",e=>{if(e.target.closest&&e.target.closest("#view [data-drop]"))e.preventDefault()});
 
 /* Länger/kürzer ziehen am unteren Rand */
 let rsz=null;

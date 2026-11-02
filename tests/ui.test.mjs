@@ -460,6 +460,48 @@ for (const v of VIEWS) {
   await pg.context().close();
 }
 
+// Mehrere Tage: gedrückt halten und über die Tage ziehen = ganztägiger Termin über diese Tage
+for (const v of ["month", "tiles", "grid", "work"]) {
+  console.log(`\nMehrtägig aufziehen: ${v}`);
+  const pg = await fresh(v);
+  const cdp = await pg.context().newCDPSession(pg);
+  const T = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y]) => ({ x, y })) });
+  // freie Stelle (kein Termin) in zwei verschiedenen Tagen suchen
+  const pts = await pg.evaluate(() => {
+    const free = el => { const r = el.getBoundingClientRect();
+      for (let fy = 0.92; fy > 0.05; fy -= 0.04) for (const fx of [0.5, 0.3, 0.7, 0.15, 0.85]) {
+        const x = r.left + r.width * fx, y = r.top + r.height * fy;
+        if (y < 0 || y > innerHeight - 90) continue;
+        const h = document.elementFromPoint(x, y);
+        if (h && h.closest("[data-drop]") === el && !h.closest("[data-ev],[data-rsz],input,.tblock,.more,button")) return [x, y, el.dataset.drop]; }
+      return null; };
+    const els = [...document.querySelectorAll("#view [data-drop]")].filter(el => el.getBoundingClientRect().width > 20);
+    let a = null, b = null;
+    for (const el of els) { const p = free(el); if (!p) continue; if (!a) { a = p; continue } if (p[2] > a[2] && (!b || p[2] > b[2])) { b = p; if (els.indexOf(el) - els.findIndex(x => x.dataset.drop === a[2]) >= 2) break } }
+    return { a, b, title: document.getElementById("title").textContent + document.getElementById("kw").textContent };
+  });
+  if (!pts.a || !pts.b) { check(`${v}: freie Stellen gefunden`, false); await pg.context().close(); continue; }
+  const [x0, y0] = pts.a, [x1, y1] = pts.b;
+  await T("touchStart", [[x0, y0]]); await pg.waitForTimeout(450);
+  for (let i = 1; i <= 10; i++) await T("touchMove", [[x0 + (x1 - x0) * i / 10, y0 + (y1 - y0) * i / 10]]);
+  const marked = await pg.evaluate(() => document.querySelectorAll("#view .rsel").length);
+  await T("touchEnd", []); await pg.waitForTimeout(500);
+  const r = await pg.evaluate(() => ({ open: !document.getElementById("ev-scrim").hidden, ad: document.getElementById("ev-allday").checked,
+    d: document.getElementById("ev-date").value, ed: document.getElementById("ev-edate").value, left: document.querySelectorAll("#view .rsel").length,
+    title: document.getElementById("title").textContent + document.getElementById("kw").textContent }));
+  check(`${v}: Tage werden beim Ziehen markiert`, marked >= 2, `markiert: ${marked}`);
+  check(`${v}: neuer Termin geht auf`, r.open);
+  check(`${v}: ganztägig von ${pts.a[2]} bis ${pts.b[2]}`, r.ad && r.d === pts.a[2] && r.ed === pts.b[2], JSON.stringify(r));
+  check(`${v}: Markierung verschwindet, kein Blättern`, r.left === 0 && r.title === pts.title, JSON.stringify(r));
+  // kurzes Antippen bleibt wie bisher (eintägiger Termin mit Uhrzeit)
+  await closeAll(pg); await pg.waitForTimeout(200);
+  await tap(pg, x0, y0); await pg.waitForTimeout(400);
+  const q = await pg.evaluate(() => ({ open: !document.getElementById("ev-scrim").hidden, ad: document.getElementById("ev-allday").checked }));
+  check(`${v}: kurz antippen = normaler Termin`, q.open && !q.ad, JSON.stringify(q));
+  check(`${v}: keine JS-Fehler`, !pg.errors.length, pg.errors.join(" | "));
+  await pg.context().close();
+}
+
 await browser.close();
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${passed} bestanden, ${failed} fehlgeschlagen`);
