@@ -785,7 +785,13 @@ body.placing .mic{opacity:0;pointer-events:none}
 .tsum{display:flex;align-items:center;gap:12px}
 .tbtn{display:flex;align-items:baseline;gap:8px;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:8px 14px;color:var(--fg)}
 .tbtn .tl{font-size:.78em;color:var(--muted);font-weight:600}
-.tbtn b{font-size:1.5em;font-family:var(--font-display)}
+.tbtn b,.tbtn .tin{font-size:1.5em;font-family:var(--font-display)}
+.tbtn{cursor:text}
+.tbtn .tin{width:3.3em;min-width:0;padding:0;margin:0;border:0;background:transparent;color:var(--fg);font-weight:700;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--accent)}
+.tbtn .tin::selection{background:color-mix(in srgb,var(--accent) 45%,transparent)}
+.tbtn:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+.tbtn .tplus{font-size:.72em;color:var(--muted);font-weight:600}
+.tbtn .tplus[hidden]{display:none}
 .tbtn[aria-expanded="true"]{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
 .tto{color:var(--muted);font-weight:600}.tto b{color:var(--fg);font-size:1.15em}
 .tpick{background:var(--surface-2);border-radius:12px;padding:8px;display:grid;gap:8px;animation:pop .15s ease both}
@@ -794,7 +800,7 @@ body.placing .mic{opacity:0;pointer-events:none}
 .tmins{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
 .tpick button{padding:6px 0}
 .tsum{flex-wrap:wrap}
-.tbtn-end b{font-size:1.25em}
+.tbtn-end b,.tbtn-end .tin{font-size:1.25em}
 /* Handy: grössere Tippflächen, damit nichts daneben geht */
 @media (pointer:coarse){
   .ibtn,#menu,#view-sel{min-height:38px;min-width:36px}
@@ -933,8 +939,9 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
       <div class="ev-hint" id="ev-hint" hidden></div>
       <div class="ev-span" id="ev-span" hidden>Bis <input type="date" id="ev-edate" aria-label="Letzter Tag"><span id="ev-days" class="num"></span></div>
       <div class="ev-when" id="ev-times">
-        <div class="tsum"><button type="button" class="tbtn" id="ev-tbtn" aria-expanded="false"><span class="tl">Beginn</span><b id="ev-tstart" class="num">09:00</b></button><button type="button" class="tbtn tbtn-end" id="ev-tbtn2" aria-expanded="false"><span class="tl">Ende</span><b id="ev-tend" class="num">10:00</b></button></div>
-        <div class="tpick" id="ev-tpick" hidden><div class="tp-h" id="ev-tpwhat">Beginn wählen</div><div class="tp-exact"><label for="ev-texact">Eintippen</label><input type="text" id="ev-texact" inputmode="numeric" enterkeyhint="done" autocomplete="off" maxlength="5" placeholder="z. B. 13:15" aria-label="Uhrzeit eintippen"><button type="button" id="ev-tok">OK</button></div><div class="tp-err" id="ev-terr" hidden>Bitte so eingeben: 9, 930, 9:30 oder 13.15</div><div class="tgrid-h" id="ev-hrs"></div><div class="tmins" id="ev-mins"></div></div>
+        <div class="tsum"><label class="tbtn" id="ev-tbtn" aria-expanded="false"><span class="tl">Beginn</span><input type="text" id="ev-tstart" class="tin num" inputmode="decimal" enterkeyhint="next" autocomplete="off" maxlength="5" aria-label="Beginn eintippen" value="09:00"></label><label class="tbtn tbtn-end" id="ev-tbtn2" aria-expanded="false"><span class="tl">Ende</span><input type="text" id="ev-tend" class="tin num" inputmode="decimal" enterkeyhint="done" autocomplete="off" maxlength="5" aria-label="Ende eintippen" value="10:00"><small id="ev-tplus" class="tplus" hidden>+1 Tag</small></label></div>
+        <div class="tp-err" id="ev-terr" hidden>Bitte so eingeben: 9, 930, 9:30 oder 13.15</div>
+        <div class="tpick" id="ev-tpick" hidden><div class="tp-h" id="ev-tpwhat">Beginn wählen</div><div class="tgrid-h" id="ev-hrs"></div><div class="tmins" id="ev-mins"></div></div>
         <div class="durs" id="ev-durs" role="group" aria-label="Dauer"></div>
         <input type="time" id="ev-start" aria-label="Beginn" hidden><input type="time" id="ev-end" aria-label="Ende" hidden>
       </div>
@@ -1630,7 +1637,7 @@ function openEditor(e,ds){
   syncAllday();
   const del=$("ev-del");del.hidden=!e||ro;del.classList.remove("armed");del.textContent=ser?"Diesen löschen":"Löschen";
   ["ev-title","ev-cal","ev-date","ev-allday","ev-start","ev-end","ev-loc","ev-notes"].forEach(id=>$(id).disabled=ro);if(ro)$("ev-rep").disabled=true;
-  ["ev-tbtn","ev-tbtn2","ev-adbtn"].forEach(id=>{if($(id))$(id).disabled=ro});$("ev-durs").hidden=ro;
+  ["ev-tbtn","ev-tbtn2","ev-adbtn"].forEach(id=>{if($(id))$(id).disabled=ro});$("ev-tstart").readOnly=ro;$("ev-tend").readOnly=ro;$("ev-durs").hidden=ro;
   $("ev-move").hidden=ro;
   if(ro) $("ev-h").textContent="Nur lesen · Erinnerung anpassbar";
   const opts=S.cals.filter(c=>!RO(c.id)||ro);
@@ -1742,9 +1749,9 @@ $("ev-allday").addEventListener("change",syncAllday);
   const sI=$("ev-start"),eI=$("ev-end"),vd=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value");
   let busy=false,pickEnd=false;
   const sync=()=>{if(busy)return;const a=mins(sI.value||"09:00"),b=mins(eI.value||"10:00"),d=b>a?b-a:b+1440-a;
-    $("ev-tstart").textContent=sI.value||"–";$("ev-tend").textContent=(eI.value||"–")+(b<a?" (+1 Tag)":"");
+    const ts=$("ev-tstart"),te=$("ev-tend");if(document.activeElement!==ts)ts.value=sI.value||"";if(document.activeElement!==te)te.value=eI.value||"";$("ev-tplus").hidden=!(b<a);
     $("ev-durs").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.d===d));
-    const v=pickEnd?b:a;$("ev-texact").value=String(Math.floor(v/60)%24).padStart(2,"0")+":"+String(v%60).padStart(2,"0");
+    const v=pickEnd?b:a;
     $("ev-hrs").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.h===Math.floor(v/60)));
     $("ev-mins").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.m===v%60))};
   [sI,eI].forEach(el=>Object.defineProperty(el,"value",{configurable:true,get(){return vd.get.call(this)},set(v){vd.set.call(this,v);sync()}}));
@@ -1758,26 +1765,30 @@ $("ev-allday").addEventListener("change",syncAllday);
   const setEnd=b=>{qTouch();busy=true;eI.value=toMin(b);busy=false;window.KK_dur=curDur();sync();syncAllday()};
   const cur=()=>mins((pickEnd?eI:sI).value||(pickEnd?"10:00":"09:00"));
   const setCur=m=>pickEnd?setEnd(m):setStart(m);
-  const openPick=end=>{const same=!$("ev-tpick").hidden&&pickEnd===end;pickEnd=end;$("ev-tpick").hidden=same;
-    $("ev-tbtn").setAttribute("aria-expanded",!same&&!end);$("ev-tbtn2").setAttribute("aria-expanded",!same&&end);$("ev-tpwhat").textContent=end?"Ende wählen":"Beginn wählen";sync()};
+  const openPick=end=>{pickEnd=end;$("ev-tpick").hidden=false;
+    $("ev-tbtn").setAttribute("aria-expanded",!end);$("ev-tbtn2").setAttribute("aria-expanded",end);$("ev-tpwhat").textContent=end?"Ende wählen":"Beginn wählen";sync()};
   const closePick=()=>{$("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false);$("ev-tbtn2").setAttribute("aria-expanded",false)};
-  $("ev-tbtn").onclick=()=>openPick(false);
-  $("ev-tbtn2").onclick=()=>openPick(true);
   $("ev-hrs").onclick=e=>{const b=e.target.closest("[data-h]");if(!b)return;setCur(+b.dataset.h*60+cur()%60)};
   $("ev-mins").onclick=e=>{const b=e.target.closest("[data-m]");if(!b)return;setCur(Math.floor(cur()/60)*60+ +b.dataset.m);closePick()};
   /* Uhrzeit frei eintippen: 9 · 930 · 0930 · 9:30 · 9.30 · 9 30 */
   const parseT=t=>{t=String(t||"").trim().replace(/\s*uhr$/i,"");let m=t.match(/^(\d{1,2})(?:[:.,\s]+(\d{1,2}))?$/);let h,mi;
     if(m){h=+m[1];mi=m[2]!=null?+(m[2].length===1?m[2]+"0":m[2]):0}else if((m=t.match(/^(\d)(\d{2})$/))||(m=t.match(/^(\d{2})(\d{2})$/))){h=+m[1];mi=+m[2]}else return null;
     if(h===24&&mi===0)h=0;if(h>23||mi>59)return null;return h*60+mi};
-  const tx=$("ev-texact");
-  const applyTyped=()=>{if(!tx.value.trim())return true;const v=parseT(tx.value);$("ev-terr").hidden=v!=null;if(v==null){tx.focus();return false}
-    const wasStart=!pickEnd;setCur(v);
-    if(wasStart){openPick(true);setTimeout(()=>{tx.focus();tx.select()},0)}else closePick();return true};
-  tx.addEventListener("focus",()=>tx.select());
-  tx.addEventListener("input",()=>{$("ev-terr").hidden=true});
-  tx.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();applyTyped()}});
-  tx.addEventListener("change",()=>{const v=parseT(tx.value);if(v!=null&&v!==cur())setCur(v)});
-  $("ev-tok").onclick=applyTyped;
+  /* Beginn / Ende antippen = direkt eintippen (Tastatur geht auf), darunter bleibt die Auswahl mit Stunden und Minuten */
+  const tin=[$("ev-tstart"),$("ev-tend")];
+  const typedBack=el=>{el.blur();setTimeout(sync,0)};
+  const applyTyped=(el,go)=>{const end=el===tin[1];pickEnd=end;if(!el.value.trim()){sync();return true}const v=parseT(el.value);$("ev-terr").hidden=v!=null;
+    if(v==null){if(go){el.focus();el.select()}return false}
+    if(v!==cur())setCur(v);
+    if(go){if(!end){tin[1].focus()}else{typedBack(el);closePick()}}return true};
+  tin.forEach((el,i)=>{
+    el.addEventListener("focus",()=>{if(el.readOnly)return;openPick(i===1);$("ev-terr").hidden=true;const v0=el.value;el.select();setTimeout(()=>{if(document.activeElement===el&&el.value===v0)el.select()},30)});
+    el.addEventListener("input",()=>{$("ev-terr").hidden=true;
+      /* vollständig eingetippt (1315 oder 13:15) = gleich übernehmen und weiter */
+      const t=el.value.trim();if(/^\d{4}$/.test(t)||/^\d{1,2}[:.,]\d{2}$/.test(t)){if(parseT(t)!=null)applyTyped(el,true)}});
+    el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();applyTyped(el,true)}});
+    el.addEventListener("blur",()=>{if(el.readOnly)return;if(!applyTyped(el,false))setTimeout(sync,0);else sync()});
+  });
   $("ev-durs").onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;window.KK_dur=+b.dataset.d;qTouch();$("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false);$("ev-tbtn2").setAttribute("aria-expanded",false);eI.value=toMin((mins(sI.value||"09:00")+ +b.dataset.d)%1440);syncAllday()};
   sync();
 }
