@@ -135,6 +135,12 @@ console.log("Termine anlegen und ändern");
 
   // Zeitwahl: Dauer bleibt, Weiterschreiben setzt nichts zurück
   await pg.click("#fab"); await pg.waitForTimeout(300);
+  { await pg.click("#ev-tbtn");
+    const g0 = await pg.evaluate(() => [document.getElementById("ev-tpick").hidden, document.activeElement.id]);
+    check("Stunden/Minuten anfangs versteckt, Feld zum Eintippen aktiv", g0[0] === true && g0[1] === "ev-tstart", g0.join(" | "));
+    await pg.click("#ev-tgrid");
+    const g1 = await pg.evaluate(() => [document.getElementById("ev-tpick").hidden, document.getElementById("ev-tgrid").getAttribute("aria-pressed")]);
+    check("Knopf holt Stunden/Minuten hervor", g1[0] === false && g1[1] === "true", g1.join(" | ")); }
   await pg.type("#ev-title", "4 Formaggi Robin kocht");
   await pg.click("#ev-tbtn"); await pg.click('#ev-hrs [data-h="18"]'); await pg.click('#ev-mins [data-m="0"]');
   await pg.click('#ev-durs [data-d="120"]');

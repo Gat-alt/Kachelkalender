@@ -783,6 +783,9 @@ body.placing .mic{opacity:0;pointer-events:none}
 .ev-mic[data-s="busy"] svg{animation:micBusy 1s ease-in-out infinite}
 .ev-when{flex-direction:column;align-items:stretch;gap:8px}
 .tsum{display:flex;align-items:center;gap:12px}
+.tgridbtn{margin-left:auto;width:44px;height:44px;flex:none;display:grid;place-items:center;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;color:var(--muted)}
+.tgridbtn svg{width:22px;height:22px;fill:currentColor}
+.tgridbtn[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
 .tbtn{display:flex;align-items:baseline;gap:8px;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:8px 14px;color:var(--fg)}
 .tbtn .tl{font-size:.78em;color:var(--muted);font-weight:600}
 .tbtn b,.tbtn .tin{font-size:1.5em;font-family:var(--font-display)}
@@ -939,7 +942,7 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
       <div class="ev-hint" id="ev-hint" hidden></div>
       <div class="ev-span" id="ev-span" hidden>Bis <input type="date" id="ev-edate" aria-label="Letzter Tag"><span id="ev-days" class="num"></span></div>
       <div class="ev-when" id="ev-times">
-        <div class="tsum"><label class="tbtn" id="ev-tbtn" aria-expanded="false"><span class="tl">Beginn</span><input type="text" id="ev-tstart" class="tin num" inputmode="decimal" enterkeyhint="next" autocomplete="off" maxlength="5" aria-label="Beginn eintippen" value="09:00"></label><label class="tbtn tbtn-end" id="ev-tbtn2" aria-expanded="false"><span class="tl">Ende</span><input type="text" id="ev-tend" class="tin num" inputmode="decimal" enterkeyhint="done" autocomplete="off" maxlength="5" aria-label="Ende eintippen" value="10:00"><small id="ev-tplus" class="tplus" hidden>+1 Tag</small></label></div>
+        <div class="tsum"><label class="tbtn" id="ev-tbtn" aria-expanded="false"><span class="tl">Beginn</span><input type="text" id="ev-tstart" class="tin num" inputmode="decimal" enterkeyhint="next" autocomplete="off" maxlength="5" aria-label="Beginn eintippen" value="09:00"></label><label class="tbtn tbtn-end" id="ev-tbtn2" aria-expanded="false"><span class="tl">Ende</span><input type="text" id="ev-tend" class="tin num" inputmode="decimal" enterkeyhint="done" autocomplete="off" maxlength="5" aria-label="Ende eintippen" value="10:00"><small id="ev-tplus" class="tplus" hidden>+1 Tag</small></label><button type="button" class="tgridbtn" id="ev-tgrid" aria-pressed="false" aria-label="Stunden und Minuten zum Antippen zeigen" title="Stunden und Minuten zeigen"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="5" rx="1.2"/><rect x="10" y="4" width="5" height="5" rx="1.2"/><rect x="17" y="4" width="4" height="5" rx="1.2"/><rect x="3" y="12" width="5" height="5" rx="1.2"/><rect x="10" y="12" width="5" height="5" rx="1.2"/><rect x="17" y="12" width="4" height="5" rx="1.2"/></svg></button></div>
         <div class="tp-err" id="ev-terr" hidden>Bitte so eingeben: 9, 930, 9:30 oder 13.15</div>
         <div class="tpick" id="ev-tpick" hidden><div class="tp-h" id="ev-tpwhat">Beginn wählen</div><div class="tgrid-h" id="ev-hrs"></div><div class="tmins" id="ev-mins"></div></div>
         <div class="durs" id="ev-durs" role="group" aria-label="Dauer"></div>
@@ -1765,7 +1768,14 @@ $("ev-allday").addEventListener("change",syncAllday);
   const setEnd=b=>{qTouch();busy=true;eI.value=toMin(b);busy=false;window.KK_dur=curDur();sync();syncAllday()};
   const cur=()=>mins((pickEnd?eI:sI).value||(pickEnd?"10:00":"09:00"));
   const setCur=m=>pickEnd?setEnd(m):setStart(m);
-  const openPick=end=>{pickEnd=end;$("ev-tpick").hidden=false;
+  /* Stunden/Minuten zum Antippen nur auf Wunsch (Knopf neben Beginn/Ende), Einstellung bleibt gespeichert */
+  const gridOn=()=>!!(S&&S.set&&S.set.tgrid);
+  const gridBtn=()=>$("ev-tgrid").setAttribute("aria-pressed",gridOn());
+  $("ev-tgrid").onclick=()=>{S.set.tgrid=!gridOn();save();gridBtn();if(gridOn())openPick(pickEnd);else closePick()};
+  /* beim Antippen nicht das Eingabefeld verlassen (Tastatur bleibt) */
+  $("ev-tgrid").addEventListener("pointerdown",e=>{if(document.activeElement&&document.activeElement.classList.contains("tin"))e.preventDefault()});
+  gridBtn();
+  const openPick=end=>{pickEnd=end;gridBtn();$("ev-tpick").hidden=!gridOn();
     $("ev-tbtn").setAttribute("aria-expanded",!end);$("ev-tbtn2").setAttribute("aria-expanded",end);$("ev-tpwhat").textContent=end?"Ende wählen":"Beginn wählen";sync()};
   const closePick=()=>{$("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false);$("ev-tbtn2").setAttribute("aria-expanded",false)};
   $("ev-hrs").onclick=e=>{const b=e.target.closest("[data-h]");if(!b)return;setCur(+b.dataset.h*60+cur()%60)};
