@@ -235,6 +235,7 @@ function toEvents(list, cal, meta, win) {
     }
     if (v.alarm) { const dm = durMin(v.alarm.v); if (dm != null && dm <= 0) ev.remind = -dm; }
     if (p.TRANSP && p.TRANSP.v === "TRANSPARENT") ev.free = true;
+    if (p["X-KACHEL-COLOR"] && /^#[0-9a-f]{6}$/i.test(p["X-KACHEL-COLOR"].v)) ev.color = p["X-KACHEL-COLOR"].v.toLowerCase(); // eigene Terminfarbe
     if (meta) Object.assign(ev, meta);
     return Object.assign(ev, extra || {});
   };
@@ -308,6 +309,7 @@ function vevent(L, e, uid, rid) {
   if (e.notes) L.push("DESCRIPTION:" + icsEsc(e.notes));
   if (e.url) L.push("URL:" + e.url);
   if (e.free) L.push("TRANSP:TRANSPARENT");
+  if (e.color && /^#[0-9a-f]{6}$/i.test(e.color)) L.push("X-KACHEL-COLOR:" + e.color.toLowerCase());
   if (e.rep && !rid) {
     const RR = e.rep.f === "x" ? e.rep.rr : { d: "FREQ=DAILY", wd: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", w: "FREQ=WEEKLY", w2: "FREQ=WEEKLY;INTERVAL=2", m: "FREQ=MONTHLY", y: "FREQ=YEARLY" }[e.rep.f];
     if (RR) {
@@ -321,7 +323,7 @@ function vevent(L, e, uid, rid) {
   if (e.remind != null && e.remind >= 0) L.push("BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + icsEsc(e.title), "TRIGGER:-PT" + e.remind + "M", "END:VALARM");
   L.push("END:VEVENT");
 }
-const sig = e => JSON.stringify([e.title, e.date, e.edate || "", !!e.allDay, e.start || "", e.end || "", e.loc || "", e.notes || "", e.rep || null, e.remind == null ? null : e.remind, e.cal, !!e.free]);
+const sig = e => JSON.stringify([e.title, e.date, e.edate || "", !!e.allDay, e.start || "", e.end || "", e.loc || "", e.notes || "", e.rep || null, e.remind == null ? null : e.remind, e.cal, !!e.free].concat(e.color && !e.colLocal ? [e.color] : [])); // Farbe nur wenn gesetzt: ältere Termine gelten so nicht als geändert
 
 /* ---------- Kalender hinzufügen ---------- */
 window.KK_connect = async ({ type, name, color, f }) => {
@@ -358,7 +360,8 @@ const win = () => ({ a: K.addDays(new Date(), -120), b: K.addDays(new Date(), 40
 function keepLocal(oldList, fresh) { // Hervorhebungen und zweite Erinnerung bleiben erhalten
   const hl = new Set(oldList.filter(e => e.hl).map(e => e.id)), r2 = new Map(oldList.filter(e => e.remind2 != null).map(e => [e.id, e.remind2]));
   const rl = new Map(oldList.filter(e => e.remindLocal).map(e => [e.id, e.remind])); // selbst gesetzte Erinnerung bei Nur-lesen-Terminen
-  fresh.forEach(e => { if (hl.has(e.id)) e.hl = true; if (r2.has(e.id)) e.remind2 = r2.get(e.id); if (rl.has(e.id)) { e.remind = rl.get(e.id); e.remindLocal = true; } });
+  const cl = new Map(oldList.filter(e => e.colLocal && e.color).map(e => [e.id, e.color])); // eigene Farbe, die nur auf dem Gerät liegt
+  fresh.forEach(e => { if (cl.has(e.id)) { e.color = cl.get(e.id); e.colLocal = true; } if (hl.has(e.id)) e.hl = true; if (r2.has(e.id)) e.remind2 = r2.get(e.id); if (rl.has(e.id)) { e.remind = rl.get(e.id); e.remindLocal = true; } });
 }
 async function pullIcs(cal, first) {
   let r;

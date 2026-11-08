@@ -43,6 +43,21 @@ html.strong .pk-btns .pk-edit{background:var(--ce);color:#fff}
 .pk-btns{display:flex;gap:8px;padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
 .pk-btns button{flex:1;border:1px solid var(--line);background:var(--surface-2);color:inherit;border-radius:12px;padding:11px 6px;font-weight:600;font:inherit;font-weight:600}
 .pk-btns .pk-edit{background:var(--c);color:var(--ci);border-color:transparent}
+.pk-head{position:relative}
+.pk-head .colbtn{position:absolute;top:10px;right:10px;z-index:2}
+.pk-head{padding-right:54px!important}
+.colbtn{flex:none;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;padding:0;cursor:pointer}
+.colbtn i{width:18px;height:18px;border-radius:50%;background:var(--c,var(--muted));box-shadow:inset 0 0 0 1.5px color-mix(in srgb,#000 18%,transparent)}
+.colbtn.own i{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--c)}
+.colbtn[aria-expanded="true"]{border-color:var(--fg)}
+.colpop{padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface);display:grid;gap:8px}
+#ev-colpop{border:1px solid var(--line);border-radius:12px;margin-top:6px}
+.colpop[hidden]{display:none}
+.colreset{justify-self:start;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:5px 11px;font-weight:600;font-size:.85em}
+.colreset i{width:12px;height:12px;border-radius:50%}
+.colreset[aria-pressed="true"]{border-color:var(--fg)}
+.ev-calrow{display:flex;gap:8px;align-items:flex-start}
+.ev-calrow .ev-cals{flex:1;min-width:0}
 </style>
 <style>
 /* Layout: Seitenleiste (Kalender, Aufgaben) + Hauptfläche mit Kachel-Woche; auf dem Handy Leiste als Schublade */
@@ -951,7 +966,8 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
       <div class="ev-warn" id="ev-warn" hidden></div>
       <div class="ev-rep"><button type="button" class="adchip" id="ev-adbtn" aria-pressed="false">Ganztägig</button><label for="ev-rep">↻</label><select id="ev-rep" aria-label="Wiederholen"><option value="">Einmalig</option><option value="d">Täglich</option><option value="wd">Jeden Werktag (Mo–Fr)</option><option value="w">Jede Woche</option><option value="w2">Alle 2 Wochen</option><option value="m">Jeden Monat</option><option value="y">Jedes Jahr</option></select>
         <span id="ev-untilw" hidden>bis <input type="date" id="ev-until" aria-label="Wiederholen bis"></span></div>
-      <div class="ev-cals" id="ev-cals" role="group" aria-label="Kalender"></div>
+      <div class="ev-calrow"><div class="ev-cals" id="ev-cals" role="group" aria-label="Kalender"></div><button type="button" class="colbtn" id="ev-colbtn" aria-expanded="false" aria-controls="ev-colpop" aria-label="Farbe dieses Termins wählen" title="Farbe wählen"><i></i></button></div>
+      <div class="colpop" id="ev-colpop" hidden></div>
       <select id="ev-cal" hidden aria-hidden="true"></select>
       <button type="button" class="ev-morebtn" id="ev-morebtn" aria-expanded="false">Mehr Optionen</button>
       <div class="form" id="ev-more" hidden>
@@ -1054,7 +1070,8 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
 <div class="peek-scrim" id="peek-scrim" hidden></div>
 <div class="peek" id="peek" role="dialog" aria-modal="true" aria-labelledby="pk-title" hidden>
   <div class="pk-in">
-    <div class="pk-head"><div class="pk-cal" id="pk-cal"></div><div class="pk-title" id="pk-title"></div></div>
+    <div class="pk-head"><button type="button" class="colbtn" id="pk-colbtn" aria-expanded="false" aria-controls="pk-colpop" aria-label="Farbe dieses Termins wählen" title="Farbe wählen"><i></i></button><div class="pk-cal" id="pk-cal"></div><div class="pk-title" id="pk-title"></div></div>
+    <div class="colpop" id="pk-colpop" hidden></div>
     <div class="pk-body" id="pk-body"><div id="pk-inner"></div></div>
     <div class="pk-btns"><button type="button" id="pk-more">Mehr …</button><button type="button" class="pk-edit" id="pk-edit">Bearbeiten</button></div>
   </div>
@@ -1212,6 +1229,8 @@ const holOf=ds=>S.set.hol?holidays(+ds.slice(0,4))[ds]:null;
 
 /* ---------- Hilfen ---------- */
 const calOf=id=>S.cals.find(c=>c.id===id)||S.cals[0];
+/* eigene Farbe eines Termins, sonst die Kalenderfarbe */
+const colOf=e=>{const o=e&&(e.full||e);const m=o&&o.sid?S.ev.find(x=>x.id===o.sid):null;return (o&&o.color)||(m&&m.color)||calOf(e.cal).color};
 /* Wiederkehrende Termine: Serien werden für den sichtbaren Zeitraum aufgefaltet */
 const REP={d:"Täglich",wd:"Jeden Werktag (Mo–Fr)",w:"Jede Woche",w2:"Alle 2 Wochen",m:"Jeden Monat",y:"Jedes Jahr"};
 function repText(e){if(!e.rep)return"";const d=parse(e.date);const w=WD[(d.getDay()+6)%7];
@@ -1284,7 +1303,7 @@ function dayEvents(ds){
     return {...e,start:ds===e.date?e.start:"00:00",end:ds===e.edate?e.end:"23:59",seg:true,full:e}}).filter(e=>e.allDay||!e.seg||e.end!=="00:00");
   return {all:l.filter(e=>e.allDay),timed:l.filter(e=>!e.allDay).sort((a,b)=>mins(a.start)-mins(b.start)||mins(a.end)-mins(b.end))};
 }
-const styleOf=e=>{const c=calOf(e.cal).color;return `--c:${c};--ci:${ink(c)}`};
+const styleOf=e=>{const c=colOf(e);return `--c:${c};--ci:${ink(c)}`};
 const evc=e=>" ev"+(e.hl?" hl":"");
 /* mehrtägig: Position im Zeitraum (Anfang / Mitte / Ende) */
 function spanCls(e,ds){if(!e.edate||e.edate===e.date)return"";return " span"+(ds===e.date?" s0":"")+(ds===e.edate?" s1":"")}
@@ -1309,7 +1328,7 @@ function dayBlock(d,fit){
       const px=Math.max(i?4:0,Math.min(g/60*11,60));
       if(px>0) html+=`<div class="gap" style="height:${px}px">${g>=120?`<span class="num">${Math.round(g/30)/2} h frei</span>`:""}</div>`;
     }else if(i) html+=`<div style="height:4px"></div>`;
-    const cc=calOf(e.cal).color;
+    const cc=colOf(e);
     html+=fit?`<button class="bar sm tint${evc(e)}" style="${styleOf(e)}" data-ev="${e.id}" data-s="${mins(e.start)}" data-e="${mins(e.end)}"><span class="t num">${e.start}</span> <span class="n">${ttl(e)}</span></button>`
       :`<button class="bar tint${evc(e)}" style="${styleOf(e)}" data-ev="${e.id}" data-s="${mins(e.start)}" data-e="${mins(e.end)}"><span class="t num">${e.start}–${e.end}</span><span class="n">${ttl(e)}</span>${e.loc?`<span class="l">${esc(e.loc)}</span>`:""}</button>`;
     prev=Math.max(prev,mins(e.end));
@@ -1404,7 +1423,7 @@ function renderMonth(){
       if(h) html+=`<span class="mi hol">${esc(h)}</span>`;
       if(mtl){all.forEach(e=>html+=`<button class="mi${evc(e)}${spanCls(e,ds)}" style="${styleOf(e)}" data-ev="${e.id}"><span class="tl">${spanTitle(e,ds,true)}</span></button>`);
         html+=`<div class="mline"><i class="noon"></i>`+timed.map(e=>`<button class="mi mt${evc(e)}" style="${styleOf(e)}" data-ev="${e.id}" data-s="${mins(e.start)}" data-e="${mins(e.end)}">${showT?`<span class="num tm">${e.start}</span>`:""}<span class="tl">${ttl(e)}</span>${showL&&e.loc?`<small>${esc(e.loc)}</small>`:""}</button>`).join("")+`</div></div>`;d=addDays(d,1);continue}
-      items.slice(0,maxI).forEach(e=>{const c=calOf(e.cal).color;
+      items.slice(0,maxI).forEach(e=>{const c=colOf(e);
         html+=`<button class="mi${evc(e)}" style="${styleOf(e)}" data-ev="${e.id}">${showT&&!e.allDay?`<span class="num tm">${e.start}</span>`:""}<span class="tl">${ttl(e)}</span>${showL&&e.loc?`<small>${esc(e.loc)}</small>`:""}</button>`});
       if(items.length>maxI) html+=`<span class="more">+${items.length-maxI}</span>`;
       html+=`</div>`;d=addDays(d,1);
@@ -1646,7 +1665,8 @@ function openEditor(e,ds){
   const opts=S.cals.filter(c=>!RO(c.id)||ro);
   $("ev-cals").innerHTML=opts.map(c=>`<button type="button" class="calchip" data-pickcal="${c.id}" style="--c:${c.color};--ci:${ink(c.color)}" aria-pressed="${c.id===$("ev-cal").value}"><i></i>${esc(c.name)}</button>`).join("");
   const more=!!(e&&(e.loc||e.notes||e.allDay||e.remind2!=null));$("ev-more").hidden=!more;$("ev-morebtn").hidden=more;
-  const esh=$("ev-scrim").querySelector(".sheet"),ec=e?calOf(e.cal).color:"";esh.classList.toggle("tinted",!!e);esh.style.setProperty("--c",ec||"transparent");
+  evColor=e?colorTarget(e).color||null:null;$("ev-colpop").hidden=true;$("ev-colbtn").setAttribute("aria-expanded",false);showEvColor();
+  const esh=$("ev-scrim").querySelector(".sheet"),ec=e?colOf(e):"";esh.classList.toggle("tinted",!!e);esh.style.setProperty("--c",ec||"transparent");
   $("ev-tpick").hidden=true;$("ev-tbtn").setAttribute("aria-expanded",false);$("ev-tbtn2").setAttribute("aria-expanded",false);
   $("ev-scrim").hidden=false;setTimeout(()=>{if(!e)$("ev-title").focus();checkWarn()},60);
 }
@@ -1814,7 +1834,24 @@ $("ev-scope").addEventListener("click",e=>{const b=e.target.closest("[data-scope
   $("ev-del").textContent=scope==="all"?"Serie löschen":"Diesen löschen";$("ev-del").classList.remove("armed")});
 $("ev-rep").addEventListener("change",()=>{$("ev-untilw").hidden=!$("ev-rep").value});
 $("ev-cals").addEventListener("click",e=>{const b=e.target.closest("[data-pickcal]");if(!b||$("ev-cal").disabled)return;$("ev-cal").value=b.dataset.pickcal;
-  $("ev-cals").querySelectorAll("[data-pickcal]").forEach(x=>x.setAttribute("aria-pressed",x===b))});
+  $("ev-cals").querySelectorAll("[data-pickcal]").forEach(x=>x.setAttribute("aria-pressed",x===b));showEvColor()});
+/* ---------- Eigene Farbe pro Termin (z. B. «eingenommen» grün) ---------- */
+let evColor=null;
+/* bei Serien gilt die Farbe für die ganze Serie */
+const colorTarget=ev=>{const o=ev.full||ev;return (o.sid&&S.ev.find(x=>x.id===o.sid))||S.ev.find(x=>x.id===o.id)||o};
+/* Farbe wird nur bei beschreibbaren CalDAV-Kalendern (z. B. Infomaniak) mit dem Server abgeglichen, sonst bleibt sie auf dem Gerät */
+const colSyncs=cal=>{const c=calOf(cal);return !!(c.acct&&c.url&&!c.ro&&c.type!=="ms")};
+function fillColPop(box,t){const cur=t&&t.color||"";
+  box.innerHTML=`<div class="swatches">${PALETTE.map(p=>`<button type="button" class="sw" style="background:${p}" data-ecol="${p}" aria-label="Farbe ${p}" aria-pressed="${p===cur}"></button>`).join("")}</div><button type="button" class="colreset" data-ecol="" aria-pressed="${!cur}"><i style="background:${calOf(t?t.cal:$("ev-cal").value).color}"></i>Kalenderfarbe</button>`}
+function setEvColor(t,col){if(col)t.color=col;else delete t.color;if(col&&!colSyncs(t.cal))t.colLocal=true;else delete t.colLocal}
+function showEvColor(){const c=evColor||calOf($("ev-cal").value).color;$("ev-colbtn").style.setProperty("--c",c);$("ev-colbtn").classList.toggle("own",!!evColor)}
+$("ev-colbtn").onclick=()=>{const p=$("ev-colpop"),open=p.hidden;if(open)fillColPop(p,{color:evColor,cal:$("ev-cal").value});p.hidden=!open;$("ev-colbtn").setAttribute("aria-expanded",open)};
+$("ev-colpop").addEventListener("click",e=>{const b=e.target.closest("[data-ecol]");if(!b)return;evColor=b.dataset.ecol||null;showEvColor();$("ev-colpop").hidden=true;$("ev-colbtn").setAttribute("aria-expanded",false);
+  const sh=$("ev-scrim").querySelector(".sheet");if(sh.classList.contains("tinted"))sh.style.setProperty("--c",evColor||calOf($("ev-cal").value).color)});
+$("pk-colbtn").onclick=e=>{e.stopPropagation();const p=$("pk-colpop"),open=p.hidden;p.hidden=!open;$("pk-colbtn").setAttribute("aria-expanded",open)};
+$("pk-colpop").addEventListener("click",e=>{e.stopPropagation();const b=e.target.closest("[data-ecol]");if(!b||!peekId)return;const ev=findEv(peekId);if(!ev)return;
+  const t=colorTarget(ev),col=b.dataset.ecol||null;setEvColor(t,col);save();render();
+  const c=colOf(ev),pk=$("peek");pk.style.setProperty("--c",c);pk.style.setProperty("--ci",ink(c));fillColPop($("pk-colpop"),t);$("pk-colpop").hidden=true;$("pk-colbtn").setAttribute("aria-expanded",false)});
 $("ev-morebtn").onclick=()=>{$("ev-more").hidden=false;$("ev-morebtn").hidden=true};
 
 $("ev-cancel").onclick=()=>{evSaved=true;$("ev-scrim").hidden=true};
@@ -1845,6 +1882,7 @@ $("ev-form").addEventListener("submit",ev=>{
     else if(o.sid){const dt=detach(o);Object.assign(dt.ev,data)}
     else{const real=S.ev.find(x=>x.id===o.id);Object.assign(real,data);if(real.pof){}else if(rf)real.rep={f:rf,until,ex:(real.rep&&real.rep.ex)||[]};else delete real.rep}}
   let newId=editing;if(!editing){newId=uid();S.ev.push({id:newId,...data,...(rf?{rep:{f:rf,until,ex:[]}}:{})})}
+  {const ne=findEv(newId)||S.ev.find(x=>x.id===newId);const t=ne&&colorTarget(ne);if(t&&(t.color||null)!==evColor)setEvColor(t,evColor)}
   if(!data.edate){for(const x of S.ev)if(x.edate===null)delete x.edate}
   const cf=confText(conflicts({...data,id:newId},newId));
   evSaved=true;save();$("ev-scrim").hidden=true;cursor=parse(data.date);render();
@@ -1985,7 +2023,7 @@ function renderPlanner(){buildPlan();const d=parse(plan.ds),td=ymd(new Date());
   const rows=[...busy.map(e=>({k:"b",s:mins(e.start),e})),...plan.items.map(p=>({k:"p",s:p.s,p}))].sort((a,b)=>a.s-b.s);
   const on=plan.items.filter(p=>!plan.off.has(p.t.id)),mm=on.reduce((a,p)=>a+p.dur,0);
   $("pl-sum").innerHTML=plan.items.length?`<b>${on.length} ${on.length===1?"Aufgabe":"Aufgaben"}</b> in die freien Lücken gelegt · ${mm>=60?Math.floor(mm/60)+" Std. ":""}${mm%60?mm%60+" Min.":""} Fokuszeit. Häkchen weg = nicht einplanen.`:"Keine offenen Aufgaben für diesen Tag, oder keine freie Zeit mehr. 🎉";
-  $("pl-list").innerHTML=rows.map((r,i)=>r.k==="b"?`<div class="pli busy" style="--d:${i*30}ms"><span class="bdot" style="--c:${calOf(r.e.cal).color}"></span><span class="pt num">${r.e.start}–${r.e.end}</span><span class="pn">${esc(r.e.title)}</span></div>`
+  $("pl-list").innerHTML=rows.map((r,i)=>r.k==="b"?`<div class="pli busy" style="--d:${i*30}ms"><span class="bdot" style="--c:${colOf(r.e)}"></span><span class="pt num">${r.e.start}–${r.e.end}</span><span class="pn">${esc(r.e.title)}</span></div>`
     :`<div class="pli${plan.off.has(r.p.t.id)?" off":""}"><input type="checkbox" data-poff="${r.p.t.id}" ${plan.off.has(r.p.t.id)?"":"checked"} aria-label="${esc(r.p.t.title)} einplanen"><span class="pt num">${toMin(r.p.s)}–${toMin(r.p.s+r.p.dur)}</span><span class="pn">${esc(r.p.t.title)}<small class="${r.p.t.due<td?"late":""}">${r.p.t.due<td?"Überfällig":r.p.t.due===td?"Heute fällig":"Fällig "+fmtDay(parse(r.p.t.due))}</small></span><select data-pdurs="${r.p.t.id}" aria-label="Dauer">${DURS.map(([m,l])=>`<option value="${m}" ${m===r.p.dur?"selected":""}>${l}</option>`).join("")}</select></div>`).join("")
     +(plan.left.length?`<div class="pl-left">Kein Platz mehr an diesem Tag: ${plan.left.map(t=>esc(t.title)).join(", ")}. <button type="button" class="linkbtn" id="pl-nextday">Nächsten Tag planen →</button></div>`:"");
   const nd=$("pl-nextday");if(nd)nd.onclick=()=>{plan.ds=ymd(addDays(parse(plan.ds),1));renderPlanner()};
@@ -2235,7 +2273,7 @@ function openActions(el,ev){
   el.classList.remove("wiggle");void el.offsetWidth;el.classList.add("wiggle");
   setTimeout(()=>{
     actId=ev.id;const c=calOf(ev.cal),ro=ROe(ev);
-    $("act-dot").style.background=c.color;const sh=$("act-scrim").querySelector(".sheet");sh.style.setProperty("--c",c.color);sh.style.setProperty("--ci",ink(c.color));$("act-cal").textContent=c.name;$("act-title").textContent=ev.title;
+    const ecol=colOf(ev);$("act-dot").style.background=ecol;const sh=$("act-scrim").querySelector(".sheet");sh.style.setProperty("--c",ecol);sh.style.setProperty("--ci",ink(ecol));$("act-cal").textContent=c.name;$("act-title").textContent=ev.title;
     $("act-sub").textContent=`${fmtDay(parse(ev.date))}${ev.allDay?" · ganztägig":`, ${ev.start}–${ev.end}`}${ev.loc?" · "+ev.loc:""}`;
     document.querySelectorAll("#act-scrim [data-act]").forEach(b=>b.disabled=ro&&!["copy","edit","hl"].includes(b.dataset.act));
     const d=$("act-del");d.classList.remove("armed");d.querySelector("span").textContent=ev.sid||ev.pof?"Diesen löschen":"Löschen";
@@ -2395,7 +2433,7 @@ function peekTarget(r){
 function setBox(pk,b){pk.style.left=b.l+"px";pk.style.top=b.t+"px";pk.style.width=b.w+"px";pk.style.height=b.h+"px"}
 function openPeek(el,ev){
   const c=calOf(ev.cal),ro=ROe(ev),pk=$("peek");peekId=ev.id;peekAt=Date.now();
-  pk.style.setProperty("--c",c.color);pk.style.setProperty("--ci",ink(c.color));
+  const pcol=colOf(ev);pk.style.setProperty("--c",pcol);pk.style.setProperty("--ci",ink(pcol));$("pk-colpop").hidden=true;$("pk-colbtn").setAttribute("aria-expanded",false);fillColPop($("pk-colpop"),colorTarget(ev));
   $("pk-cal").textContent=c.name;$("pk-title").textContent=ev.title||"Ohne Titel";
   const row=(i,t,cls)=>`<div class="pk-row${cls?" "+cls:""}">${IC[i]}<div>${t}</div></div>`;
   const md=ev.edate&&ev.edate>ev.date;
