@@ -534,6 +534,15 @@ html.solid .ev .t,html.solid .ev .l,html.solid .ev .tm,.ev.hl .t,.ev.hl .l,.ev.h
 .ev.hl{font-weight:800}
 html.solid .ev.hl{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--c)}
 .ev .star{font-size:.95em}
+/* Geburtstage: immer voll eingefärbt, fett und mit Ring – fallen in jedem Farbstil auf */
+html .ev.bd,html.strong .ev.bd,html.soft .ev.bd,html.plus .ev.bd,html.vivid .ev.bd,html .month .ev.bd{background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 70%,#ffb347))!important;color:#fff!important;border:0!important;border-left:4px solid color-mix(in srgb,var(--c) 70%,#000)!important;font-weight:800!important;box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--c),0 4px 12px -4px var(--c)!important}
+html .ev.bd .t,html .ev.bd .l,html .ev.bd .tm,html .ev.bd .spn{color:inherit!important;opacity:.9}
+.allday .ev.bd{padding:4px 8px;margin:2px 2px 3px}
+.ev .cake{font-size:1em}
+.dh .bdmark{font-size:1.05em;line-height:1;margin-left:-2px;animation:bdpop 1.6s ease-in-out 2}
+@keyframes bdpop{50%{transform:scale(1.25) rotate(-8deg)}}
+@media (prefers-reduced-motion:reduce){.dh .bdmark{animation:none}}
+.month .c.hasbd .d{box-shadow:0 0 0 2px var(--bdc,#e8467c);border-radius:999px}
 .act-grid button.on{color:#c98a00;border-color:#c98a00}
 .vcyc2{flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:74px;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:0 10px;font-weight:700;cursor:pointer;color:var(--fg)}
 .vcyc2:active{transform:scale(.95)}
@@ -1015,6 +1024,7 @@ html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surfa
       <label class="inline"><input type="checkbox" id="set-gaps"> Freie Zeit zwischen Terminen als Abstand zeigen</label>
       <label class="inline"><input type="checkbox" id="set-kw"> Wochennummern anzeigen</label>
       <label class="inline"><input type="checkbox" id="set-hol"> Feiertage Kanton Zürich anzeigen</label>
+      <div class="row2 bdrow"><label class="inline"><input type="checkbox" id="set-bd"> 🎂 Geburtstage hervorheben</label><label class="inline">Farbe <input type="color" id="set-bdc" aria-label="Farbe für Geburtstage"></label></div>
       <label>Standard-Erinnerung für neue Termine<select id="set-remind">
         <option value="-1">Keine</option><option value="10">10 Min. vorher</option><option value="15">15 Min. vorher</option><option value="30">30 Min. vorher</option><option value="60">1 Std. vorher</option></select></label>
       <button type="button" class="btn" id="test-remind">Erinnerung testen</button>
@@ -1230,7 +1240,10 @@ const holOf=ds=>S.set.hol?holidays(+ds.slice(0,4))[ds]:null;
 /* ---------- Hilfen ---------- */
 const calOf=id=>S.cals.find(c=>c.id===id)||S.cals[0];
 /* eigene Farbe eines Termins, sonst die Kalenderfarbe */
-const colOf=e=>{const o=e&&(e.full||e);const m=o&&o.sid?S.ev.find(x=>x.id===o.sid):null;return (o&&o.color)||(m&&m.color)||calOf(e.cal).color};
+/* Geburtstage: am Titel («Geburtstag», «Geb.», «Birthday», 🎂), am Kalendernamen («Geburtstage») oder aus .ics (CATEGORIES:BIRTHDAY) erkannt */
+const BD_RE=/geburtstag|\bgeb\.|birthday|\bb-?day\b|🎂/i,BD_COL="#e8467c";
+const isBd=e=>{if(!e||S.set.bd===false)return false;const o=e.full||e,m=o.sid?S.ev.find(x=>x.id===o.sid):null;return !!(o.bday||(m&&m.bday)||BD_RE.test(o.title||"")||BD_RE.test(calOf(o.cal).name||""))};
+const colOf=e=>{const o=e&&(e.full||e);const m=o&&o.sid?S.ev.find(x=>x.id===o.sid):null;return (o&&o.color)||(m&&m.color)||(isBd(o)?(S.set.bdc||BD_COL):calOf(e.cal).color)};
 /* Wiederkehrende Termine: Serien werden für den sichtbaren Zeitraum aufgefaltet */
 const REP={d:"Täglich",wd:"Jeden Werktag (Mo–Fr)",w:"Jede Woche",w2:"Alle 2 Wochen",m:"Jeden Monat",y:"Jedes Jahr"};
 function repText(e){if(!e.rep)return"";const d=parse(e.date);const w=WD[(d.getDay()+6)%7];
@@ -1290,7 +1303,7 @@ function removeOcc(o){
   if(o.sid){const m=S.ev.find(x=>x.id===o.sid);m.rep.ex=[...(m.rep.ex||[]),o.date];return()=>{m.rep.ex=m.rep.ex.filter(x=>x!==o.date)}}
   const keep=S.ev.find(x=>x.id===o.id);S.ev=S.ev.filter(x=>x.id!==o.id);return()=>S.ev.push(keep)}
 function removeSeries(o){const m=S.ev.find(x=>x.id===(o.sid||o.pof||o.id)),ovs=S.ev.filter(x=>m&&x.pof===m.id);S.ev=S.ev.filter(x=>x!==m&&!ovs.includes(x));return()=>S.ev.push(m,...ovs)}
-const ttl=e=>(e.hl?'<span class="star" aria-label="hervorgehoben">★</span> ':"")+esc(e.title)+(e.sid||e.pof?' <span class="rp" aria-label="wiederkehrend">↻</span>':"");
+const ttl=e=>(e.hl?'<span class="star" aria-label="hervorgehoben">★</span> ':"")+(isBd(e)&&!/🎂/.test(e.title)?'<span class="cake" aria-label="Geburtstag">🎂</span> ':"")+esc(e.title)+(e.sid||e.pof?' <span class="rp" aria-label="wiederkehrend">↻</span>':"");
 const RO=id=>id==="plan"||!!(S.cals.find(c=>c.id===id)||{}).ro;
 /* Termin nur lesen: Kalender nur lesen oder Einzeltermin einer Serie mit Ausnahmen beim Anbieter */
 const ROe=e=>!!e&&(RO(e.cal)||!!e.lock);
@@ -1304,7 +1317,7 @@ function dayEvents(ds){
   return {all:l.filter(e=>e.allDay),timed:l.filter(e=>!e.allDay).sort((a,b)=>mins(a.start)-mins(b.start)||mins(a.end)-mins(b.end))};
 }
 const styleOf=e=>{const c=colOf(e);return `--c:${c};--ci:${ink(c)}`};
-const evc=e=>" ev"+(e.hl?" hl":"");
+const evc=e=>" ev"+(e.hl?" hl":"")+(isBd(e)?" bd":"");
 /* mehrtägig: Position im Zeitraum (Anfang / Mitte / Ende) */
 function spanCls(e,ds){if(!e.edate||e.edate===e.date)return"";return " span"+(ds===e.date?" s0":"")+(ds===e.edate?" s1":"")}
 function spanTitle(e,ds,bare){if(!e.edate||e.edate===e.date)return ttl(e);
@@ -1338,7 +1351,7 @@ function dayBlock(d,fit){
 }
 function dayHead(d){
   const i=(d.getDay()+6)%7;
-  return `<div class="dh"><button class="open" data-open="${ymd(d)}" aria-label="${fmtDay(d)} öffnen"><span class="dnum num">${d.getDate()}</span><span class="dname">${WDS[i]}<em>${MON[d.getMonth()].slice(0,3)}.</em></span></button>${(()=>{const n=S.tasks.filter(t=>t.due===ymd(d)&&!t.done&&!(t.sDate&&t.sStart)).length;return n?`<button class="tpill" data-tpill="${ymd(d)}" aria-label="${n} ${n===1?"Aufgabe":"Aufgaben"} fällig – öffnen">✓ ${n}</button>`:""})()}<button class="add" data-new="${ymd(d)}" aria-label="Termin am ${fmtDay(d)}">+</button></div>`;
+  return `<div class="dh"><button class="open" data-open="${ymd(d)}" aria-label="${fmtDay(d)} öffnen"><span class="dnum num">${d.getDate()}</span>${dayEvents(ymd(d)).all.some(isBd)?`<span class="bdmark" aria-label="Geburtstag">🎂</span>`:""}<span class="dname">${WDS[i]}<em>${MON[d.getMonth()].slice(0,3)}.</em></span></button>${(()=>{const n=S.tasks.filter(t=>t.due===ymd(d)&&!t.done&&!(t.sDate&&t.sStart)).length;return n?`<button class="tpill" data-tpill="${ymd(d)}" aria-label="${n} ${n===1?"Aufgabe":"Aufgaben"} fällig – öffnen">✓ ${n}</button>`:""})()}<button class="add" data-new="${ymd(d)}" aria-label="Termin am ${fmtDay(d)}">+</button></div>`;
 }
 function renderTiles(){
   const m=monday(cursor),td=ymd(new Date()),tz=S.set.tz||1,tm=tfMode(),fit=tm===2;
@@ -1419,7 +1432,7 @@ function renderMonth(){
     html+=`<div class="wk num">${S.set.kw?isoWeek(d):""}</div>`;
     for(let i=0;i<7;i++){
       const ds=ymd(d),{all,timed}=dayEvents(ds),items=[...all,...timed],h=holOf(ds);
-      html+=`<div class="c${d.getMonth()!==cursor.getMonth()?" out":""}${ds===td?" tdy":""}${i>4?" we":""}" data-drop="${ds}"><button class="d num" data-open="${ds}" aria-label="${fmtDay(d)} öffnen">${d.getDate()}</button>`;
+      html+=`<div class="c${d.getMonth()!==cursor.getMonth()?" out":""}${ds===td?" tdy":""}${i>4?" we":""}${all.some(isBd)?" hasbd":""}" data-drop="${ds}"><button class="d num" data-open="${ds}" aria-label="${fmtDay(d)} öffnen">${d.getDate()}</button>`;
       if(h) html+=`<span class="mi hol">${esc(h)}</span>`;
       if(mtl){all.forEach(e=>html+=`<button class="mi${evc(e)}${spanCls(e,ds)}" style="${styleOf(e)}" data-ev="${e.id}"><span class="tl">${spanTitle(e,ds,true)}</span></button>`);
         html+=`<div class="mline"><i class="noon"></i>`+timed.map(e=>`<button class="mi mt${evc(e)}" style="${styleOf(e)}" data-ev="${e.id}" data-s="${mins(e.start)}" data-e="${mins(e.end)}">${showT?`<span class="num tm">${e.start}</span>`:""}<span class="tl">${ttl(e)}</span>${showL&&e.loc?`<small>${esc(e.loc)}</small>`:""}</button>`).join("")+`</div></div>`;d=addDays(d,1);continue}
@@ -1591,6 +1604,7 @@ function render(anim){document.documentElement.dataset.v=view;
   document.documentElement.classList.toggle("soft",S.set.style==="soft");
   document.documentElement.classList.toggle("plus",S.set.style==="plus");
   document.documentElement.classList.toggle("vivid",S.set.style==="vivid");
+  document.documentElement.style.setProperty("--bdc",S.set.bdc||BD_COL);
   document.documentElement.classList.toggle("land",isLand());
   document.documentElement.style.setProperty("--fs",S.set.font);
   if(S.set.theme) document.documentElement.dataset.theme=S.set.theme; else delete document.documentElement.dataset.theme;
@@ -1908,7 +1922,7 @@ $("search-input").addEventListener("input",doSearch);
 
 /* ---------- Einstellungen ---------- */
 function renderSettings(){renderSets();
-  $("set-rot").value=S.set.rot||"grid";$("set-style").value=S.set.style||"tint";$("set-theme").value=S.set.theme;$("set-font").value=S.set.font;$("set-gaps").checked=S.set.gaps;$("set-kw").checked=S.set.kw;$("set-hol").checked=S.set.hol;$("set-remind").value=String(S.set.remind);
+  $("set-rot").value=S.set.rot||"grid";$("set-style").value=S.set.style||"tint";$("set-theme").value=S.set.theme;$("set-font").value=S.set.font;$("set-gaps").checked=S.set.gaps;$("set-kw").checked=S.set.kw;$("set-hol").checked=S.set.hol;$("set-bd").checked=S.set.bd!==false;$("set-bdc").value=S.set.bdc||BD_COL;$("set-bdc").disabled=S.set.bd===false;$("set-remind").value=String(S.set.remind);
   $("colors").innerHTML=S.cals.map(c=>`<div class="calcolor"><b>${esc(c.name)}</b><div class="swatches">${PALETTE.map(p=>`<button class="sw" style="background:${p}" data-sw="${c.id}" data-color="${p}" aria-label="Farbe ${p} für ${esc(c.name)}" aria-pressed="${p===c.color}"></button>`).join("")}</div></div>`).join("");
   /* Konten: die echten verbundenen Kalender (ohne Zugangsdaten) */
   const acc=S.cals.filter(c=>c.type&&c.type!=="local").map(c=>[c.name,c.src||"",c.ro?"wait":"ok",c.ro?"nur lesen":"verbunden"]);
@@ -2055,7 +2069,7 @@ const TH={light:["Hell",'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/
 function themeBtn(){const t=curTheme(),[n,ic]=TH[t];$("theme-btn").innerHTML=ic+n;$("theme-btn").setAttribute("aria-label",`Darstellung: ${n}. Tippen zum Wechseln`)}
 $("theme-btn").onclick=()=>{const o=["light","dim","dark"];S.set.theme=o[(o.indexOf(curTheme())+1)%3];save();render();themeBtn();toast(TH[S.set.theme][0],null,1000)};
 if(window.matchMedia)matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>themeBtn());
-$("set-theme").addEventListener("change",()=>themeBtn());themeBtn();bindSet("set-style","style");bindSet("set-rot","rot");bindSet("set-font","font");bindSet("set-gaps","gaps");bindSet("set-kw","kw");bindSet("set-hol","hol");bindSet("set-remind","remind",Number);
+$("set-theme").addEventListener("change",()=>themeBtn());themeBtn();bindSet("set-style","style");bindSet("set-rot","rot");bindSet("set-font","font");bindSet("set-gaps","gaps");bindSet("set-kw","kw");bindSet("set-hol","hol");bindSet("set-bd","bd");$("set-bd").addEventListener("change",e=>{$("set-bdc").disabled=!e.target.checked});bindSet("set-bdc","bdc");bindSet("set-remind","remind",Number);
 $("colors").addEventListener("click",e=>{const b=e.target.closest("[data-sw]");if(!b)return;calOf(b.dataset.sw).color=b.dataset.color;save();renderSettings();render()});
 $("test-remind").onclick=()=>{$("set-scrim").hidden=true;toast("Erinnerung kommt in 3 Sekunden …");
   setTimeout(()=>{const now=new Date(),nd=ymd(now),nm=now.getHours()*60+now.getMinutes();
@@ -2336,7 +2350,7 @@ function fromICS(text){
   let inAlarm=false;
   for(const l of lines){
     if(l==="BEGIN:VEVENT"){cur={};continue}if(l==="BEGIN:VALARM"){inAlarm=true;continue}if(l==="END:VALARM"){inAlarm=false;continue}
-    if(l==="END:VEVENT"&&cur){const s=dt(cur.DTSTART),e=dt(cur.DTEND);if(s){const ev={id:uid(),title:un(cur.SUMMARY)||"Ohne Titel",date:s.d,loc:un(cur.LOCATION),notes:un(cur.DESCRIPTION)};
+    if(l==="END:VEVENT"&&cur){const s=dt(cur.DTSTART),e=dt(cur.DTEND);if(s){const ev={id:uid(),title:un(cur.SUMMARY)||"Ohne Titel",date:s.d,loc:un(cur.LOCATION),notes:un(cur.DESCRIPTION)};if(/birthday|geburtstag/i.test(cur.CATEGORIES||""))ev.bday=true;
         if(cur.URL)ev.url=cur.URL;
         if(!s.t){ev.allDay=true;ev.start="";ev.end="";if(e&&e.d>s.d){const ed=ymd(addDays(parse(e.d),-1));if(ed>s.d)ev.edate=ed}}
         else{ev.allDay=false;ev.start=s.t;ev.end=e&&e.t?e.t:toMin(Math.min(mins(s.t)+60,24*60-1));if(e&&e.d>s.d){if(e.t==="00:00"&&ymd(addDays(parse(s.d),1))===e.d)ev.end="23:59";else ev.edate=e.d}
@@ -2693,7 +2707,7 @@ function net(){const on=navigator.onLine;$("net-dot").classList.toggle("off",!on
 addEventListener("online",net);addEventListener("offline",net);net();
 setInterval(()=>{if(view==="day"||view==="grid"||view==="work")render()},60000);
 render();
-if(window.KK_APP)window.KK_APP({get S(){return S},save,render,toast,calOf,uid,PALETTE,SRC,parse,ymd,addDays,toMin,mins,esc,$,expanded,visible,cursorDate:()=>cursor,goto:(ds,v)=>{const d=parse(ds);if(isNaN(d))return;cursor=d;document.querySelectorAll(".scrim").forEach(x=>x.hidden=true);if(v&&v!==view)setView(v);else render("f")}});
+if(window.KK_APP)window.KK_APP({get S(){return S},save,render,toast,calOf,colOf,isBd,uid,PALETTE,SRC,parse,ymd,addDays,toMin,mins,esc,$,expanded,visible,cursorDate:()=>cursor,goto:(ds,v)=>{const d=parse(ds);if(isNaN(d))return;cursor=d;document.querySelectorAll(".scrim").forEach(x=>x.hidden=true);if(v&&v!==view)setView(v);else render("f")}});
 /* ---------- Spracheingabe: Whisper auf dem Gerät, keine Aufnahme verlässt das Handy ---------- */
 {
   const mic=$("mic"),WKEY=KEY+"-whisper";let W=null,rec=null,chunks=[],stream=null,stopT=null;

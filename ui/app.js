@@ -225,6 +225,7 @@ function toEvents(list, cal, meta, win) {
     const ev = { id: "r" + hash(cal.id + "|" + uid + "|" + rid + (extra && extra.occ ? "|" + extra.occ : "")), uid, cal: cal.id,
       title: unesc(p.SUMMARY && p.SUMMARY.v) || "(ohne Titel)", date: s.d, loc: unesc(p.LOCATION && p.LOCATION.v), notes: unesc(p.DESCRIPTION && p.DESCRIPTION.v) };
     if (p.URL && p.URL.v) ev.url = unesc(p.URL.v);
+    if (/birthday|geburtstag/i.test((p.CATEGORIES && p.CATEGORIES.v) || "") || (p["X-GOOGLE-CALENDAR-CONTENT-ICON"] && /birthday/i.test(p["X-GOOGLE-CALENDAR-CONTENT-ICON"].v))) ev.bday = true;
     if (!s.t) { ev.allDay = true; ev.start = ""; ev.end = ""; const ed = e && e.d > s.d ? K.ymd(K.addDays(K.parse(e.d), -1)) : s.d; if (ed > s.d) ev.edate = ed; }
     else {
       ev.start = s.t;
@@ -816,7 +817,7 @@ async function writeWidget() {
       K.visible().filter(e => e.date === ds || (e.edate && e.date < ds && e.edate >= ds)).forEach(e => {
         const end = K.parse(e.edate && e.edate > e.date ? e.edate : e.date); if (e.allDay) end.setHours(23, 59); else { const [h, m] = e.end.split(":").map(Number); end.setHours(h, m); }
         if (end.getTime() < now) return;
-        list.push({ day: ds === today ? "Heute" : ds === tom ? "Morgen" : `${WD[d.getDay()]}, ${d.getDate()}. ${MO[d.getMonth()]}`, label: `${WD[d.getDay()]}, ${d.getDate()}. ${MO[d.getMonth()]}`, ds, time: e.allDay ? "ganztägig" : (e.date < ds ? "00:00" : e.start), title: e.title, color: K.calOf(e.cal).color, end: end.getTime() });
+        list.push({ day: ds === today ? "Heute" : ds === tom ? "Morgen" : `${WD[d.getDay()]}, ${d.getDate()}. ${MO[d.getMonth()]}`, label: `${WD[d.getDay()]}, ${d.getDate()}. ${MO[d.getMonth()]}`, ds, time: e.allDay ? "ganztägig" : (e.date < ds ? "00:00" : e.start), title: (K.isBd && K.isBd(e) && !/🎂/.test(e.title) ? "🎂 " : "") + e.title, color: K.colOf ? K.colOf(e) : K.calOf(e.cal).color, end: end.getTime() });
       });
     }
     list.sort((a, b) => a.ds.localeCompare(b.ds) || (a.time === "ganztägig" ? -1 : b.time === "ganztägig" ? 1 : a.time.localeCompare(b.time)));

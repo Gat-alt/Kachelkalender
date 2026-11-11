@@ -514,6 +514,31 @@ for (const v of ["month", "tiles", "grid", "work"]) {
   await pg.context().close();
 }
 
+// Geburtstage fallen auf: eigene Farbe, 🎂, abschaltbar
+{
+  console.log("\nGeburtstage");
+  const pg = await fresh("tiles");
+  const r = await pg.evaluate(() => {
+    const b = [...document.querySelectorAll(".ev.bd")];
+    const chip = b[0], cs = chip && getComputedStyle(chip);
+    return { n: b.length, cake: !!(chip && chip.querySelector(".cake")), white: cs && cs.color === "rgb(255, 255, 255)", mark: !!document.querySelector(".dh .bdmark"), other: [...document.querySelectorAll(".ev:not(.bd)")].some(x => /Geburtstag/.test(x.textContent)) };
+  });
+  check("Geburtstag hervorgehoben (Farbe, fett, 🎂)", r.n >= 1 && r.cake && r.white && r.mark && !r.other, JSON.stringify(r));
+  await pg.evaluate(() => { const c = document.getElementById("set-bd"); c.checked = false; c.dispatchEvent(new Event("change")); });
+  await pg.waitForTimeout(200);
+  const off = await pg.evaluate(() => document.querySelectorAll(".ev.bd").length);
+  check("Hervorhebung abschaltbar", off === 0, String(off));
+  await pg.evaluate(() => { const c = document.getElementById("set-bd"); c.checked = true; c.dispatchEvent(new Event("change")); });
+  check("Geburtstage: keine JS-Fehler", !pg.errors.length, pg.errors.join(" | "));
+  await pg.context().close();
+  for (const v of ["month", "grid", "work"]) {
+    const q = await fresh(v);
+    const n = await q.evaluate(() => document.querySelectorAll(".ev.bd").length);
+    check(`${v}: Geburtstag hervorgehoben`, n >= 1 && !q.errors.length, n + " " + q.errors.join(" | "));
+    await q.context().close();
+  }
+}
+
 await browser.close();
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${passed} bestanden, ${failed} fehlgeschlagen`);
