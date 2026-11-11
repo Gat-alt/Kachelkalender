@@ -40,7 +40,7 @@ html.strong .pk-btns .pk-edit{background:var(--ce);color:#fff}
 .pk-link small{display:block;color:var(--muted);font-weight:500;font-size:.8em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sheet,.pk-body{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .rb-back{transition:transform .38s cubic-bezier(.2,.9,.25,1.15)!important}
-.pk-btns{display:flex;gap:8px;padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
+.pk-btns{flex:none;display:flex;gap:8px;padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
 .pk-btns button{flex:1;border:1px solid var(--line);background:var(--surface-2);color:inherit;border-radius:12px;padding:11px 6px;font-weight:600;font:inherit;font-weight:600}
 .pk-btns .pk-edit{background:var(--c);color:var(--ci);border-color:transparent}
 .pk-head{position:relative}
@@ -50,7 +50,7 @@ html.strong .pk-btns .pk-edit{background:var(--ce);color:#fff}
 .colbtn i{width:18px;height:18px;border-radius:50%;background:var(--c,var(--muted));box-shadow:inset 0 0 0 1.5px color-mix(in srgb,#000 18%,transparent)}
 .colbtn.own i{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--c)}
 .colbtn[aria-expanded="true"]{border-color:var(--fg)}
-.colpop{padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface);display:grid;gap:8px}
+.colpop{flex:none;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface);display:grid;gap:8px}
 #ev-colpop{border:1px solid var(--line);border-radius:12px;margin-top:6px}
 .colpop[hidden]{display:none}
 .colreset{justify-self:start;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:5px 11px;font-weight:600;font-size:.85em}
@@ -535,9 +535,31 @@ html.solid .ev .t,html.solid .ev .l,html.solid .ev .tm,.ev.hl .t,.ev.hl .l,.ev.h
 html.solid .ev.hl{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--c)}
 .ev .star{font-size:.95em}
 /* Geburtstage: immer voll eingefärbt, fett und mit Ring – fallen in jedem Farbstil auf */
-html .ev.bd,html.strong .ev.bd,html.soft .ev.bd,html.plus .ev.bd,html.vivid .ev.bd,html .month .ev.bd{background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 70%,#ffb347))!important;color:#fff!important;border:0!important;border-left:4px solid color-mix(in srgb,var(--c) 70%,#000)!important;font-weight:800!important;box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--c),0 4px 12px -4px var(--c)!important}
-html .ev.bd .t,html .ev.bd .l,html .ev.bd .tm,html .ev.bd .spn{color:inherit!important;opacity:.9}
-.allday .ev.bd{padding:4px 8px;margin:2px 2px 3px}
+html .ev.bd,html.strong .ev.bd,html.soft .ev.bd,html.plus .ev.bd,html.vivid .ev.bd,html .month .ev.bd,.pk-head.bd{
+  --g1:color-mix(in srgb,var(--c) 70%,#fff);--g2:color-mix(in srgb,var(--c) 85%,#000);
+  background:
+    radial-gradient(circle at 12% 30%,#fff 0 1.2px,transparent 1.8px),
+    radial-gradient(circle at 34% 72%,#fff 0 1px,transparent 1.6px),
+    radial-gradient(circle at 58% 22%,#fff 0 1.4px,transparent 2px),
+    radial-gradient(circle at 80% 64%,#fff 0 1px,transparent 1.6px),
+    radial-gradient(circle at 93% 28%,#fff 0 1.2px,transparent 1.8px),
+    linear-gradient(110deg,transparent 30%,rgba(255,255,255,.75) 45%,transparent 60%),
+    linear-gradient(135deg,var(--g2),var(--c) 30%,var(--g1) 50%,var(--c) 70%,var(--g2))!important;
+  background-size:60px 100%,60px 100%,60px 100%,60px 100%,60px 100%,250% 100%,100% 100%!important;
+  background-repeat:repeat-x,repeat-x,repeat-x,repeat-x,repeat-x,no-repeat,no-repeat!important;
+  animation:bdglit 3.2s linear infinite,bdtw 1.6s ease-in-out infinite alternate;
+  color:#1b1300!important;text-shadow:0 1px 0 rgba(255,255,255,.55);border:0!important;font-weight:800!important;
+  box-shadow:0 0 0 1.5px var(--g2),0 0 10px -1px var(--c)!important}
+@keyframes bdglit{from{background-position:0 0,0 0,0 0,0 0,0 0,160% 0,0 0}to{background-position:60px 0,-60px 0,60px 0,-60px 0,60px 0,-160% 0,0 0}}
+@keyframes bdtw{from{filter:brightness(1)}to{filter:brightness(1.12) saturate(1.15)}}
+@media (prefers-reduced-motion:reduce){html .ev.bd,.pk-head.bd{animation:none}}
+html .ev.bd .t,html .ev.bd .l,html .ev.bd .tm,html .ev.bd .spn,.pk-head.bd .pk-cal{color:inherit!important;opacity:.85}
+/* Geburtstag im Monat und im Ganztages-Streifen: Text bleibt im Kästchen */
+.ev.bd{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0;max-width:100%;box-sizing:border-box}
+.ev.bd .tl,.ev.bd .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;min-width:0}
+.month .ev.bd{padding:1px 3px;margin:1px 0}
+.pk-head.bd{border-left:0!important}
+.allday .ev.bd{padding:4px 8px;margin:2px 0 3px}
 .ev .cake{font-size:1em}
 .dh .bdmark{font-size:1.05em;line-height:1;margin-left:-2px;animation:bdpop 1.6s ease-in-out 2}
 @keyframes bdpop{50%{transform:scale(1.25) rotate(-8deg)}}
@@ -1241,9 +1263,13 @@ const holOf=ds=>S.set.hol?holidays(+ds.slice(0,4))[ds]:null;
 const calOf=id=>S.cals.find(c=>c.id===id)||S.cals[0];
 /* eigene Farbe eines Termins, sonst die Kalenderfarbe */
 /* Geburtstage: am Titel («Geburtstag», «Geb.», «Birthday», 🎂), am Kalendernamen («Geburtstage») oder aus .ics (CATEGORIES:BIRTHDAY) erkannt */
-const BD_RE=/geburtstag|\bgeb\.|birthday|\bb-?day\b|🎂/i,BD_COL="#e8467c";
+const BD_RE=/geburtstag|\bgeb\.|birthday|\bb-?day\b|🎂/i,BD_COL="#f5b301",BD_ALT="#c084fc";
+/* Farbton (0–360) und Abstand: Geburtstag soll sich immer vom eigenen Kalender abheben */
+const hueOf=hex=>{const n=parseInt(hex.slice(1),16),r=(n>>16&255)/255,g=(n>>8&255)/255,b=(n&255)/255,M=Math.max(r,g,b),m=Math.min(r,g,b),d=M-m;if(!d)return -1;let h=M===r?((g-b)/d)%6:M===g?(b-r)/d+2:(r-g)/d+4;return (h*60+360)%360};
+const nearHue=(a,b)=>{const x=hueOf(a),y=hueOf(b);if(x<0||y<0)return false;const d=Math.abs(x-y);return Math.min(d,360-d)<40};
+const bdCol=e=>{const c=S.set.bdc||BD_COL,k=calOf(e.cal).color||"";return nearHue(c,k)?(nearHue(BD_ALT,k)?BD_COL:BD_ALT):c};
 const isBd=e=>{if(!e||S.set.bd===false)return false;const o=e.full||e,m=o.sid?S.ev.find(x=>x.id===o.sid):null;return !!(o.bday||(m&&m.bday)||BD_RE.test(o.title||"")||BD_RE.test(calOf(o.cal).name||""))};
-const colOf=e=>{const o=e&&(e.full||e);const m=o&&o.sid?S.ev.find(x=>x.id===o.sid):null;return (o&&o.color)||(m&&m.color)||(isBd(o)?(S.set.bdc||BD_COL):calOf(e.cal).color)};
+const colOf=e=>{const o=e&&(e.full||e);const m=o&&o.sid?S.ev.find(x=>x.id===o.sid):null;return (o&&o.color)||(m&&m.color)||(isBd(o)?bdCol(o):calOf(e.cal).color)};
 /* Wiederkehrende Termine: Serien werden für den sichtbaren Zeitraum aufgefaltet */
 const REP={d:"Täglich",wd:"Jeden Werktag (Mo–Fr)",w:"Jede Woche",w2:"Alle 2 Wochen",m:"Jeden Monat",y:"Jedes Jahr"};
 function repText(e){if(!e.rep)return"";const d=parse(e.date);const w=WD[(d.getDay()+6)%7];
@@ -1314,7 +1340,7 @@ function dayEvents(ds){
     /* Termin mit Uhrzeit über mehrere Tage (z. B. 22:00–02:00): an jedem Tag nur den passenden Teil zeigen */
     if(e.allDay||!e.edate||e.edate<=e.date)return e;
     return {...e,start:ds===e.date?e.start:"00:00",end:ds===e.edate?e.end:"23:59",seg:true,full:e}}).filter(e=>e.allDay||!e.seg||e.end!=="00:00");
-  return {all:l.filter(e=>e.allDay),timed:l.filter(e=>!e.allDay).sort((a,b)=>mins(a.start)-mins(b.start)||mins(a.end)-mins(b.end))};
+  return {all:l.filter(e=>e.allDay||isBd(e)),timed:l.filter(e=>!e.allDay&&!isBd(e)).sort((a,b)=>mins(a.start)-mins(b.start)||mins(a.end)-mins(b.end))};
 }
 const styleOf=e=>{const c=colOf(e);return `--c:${c};--ci:${ink(c)}`};
 const evc=e=>" ev"+(e.hl?" hl":"")+(isBd(e)?" bd":"");
@@ -1862,10 +1888,13 @@ function showEvColor(){const c=evColor||calOf($("ev-cal").value).color;$("ev-col
 $("ev-colbtn").onclick=()=>{const p=$("ev-colpop"),open=p.hidden;if(open)fillColPop(p,{color:evColor,cal:$("ev-cal").value});p.hidden=!open;$("ev-colbtn").setAttribute("aria-expanded",open)};
 $("ev-colpop").addEventListener("click",e=>{const b=e.target.closest("[data-ecol]");if(!b)return;evColor=b.dataset.ecol||null;showEvColor();$("ev-colpop").hidden=true;$("ev-colbtn").setAttribute("aria-expanded",false);
   const sh=$("ev-scrim").querySelector(".sheet");if(sh.classList.contains("tinted"))sh.style.setProperty("--c",evColor||calOf($("ev-cal").value).color)});
-$("pk-colbtn").onclick=e=>{e.stopPropagation();const p=$("pk-colpop"),open=p.hidden;p.hidden=!open;$("pk-colbtn").setAttribute("aria-expanded",open)};
+$("pk-colbtn").onclick=e=>{e.stopPropagation();const p=$("pk-colpop"),open=p.hidden;p.hidden=!open;$("pk-colbtn").setAttribute("aria-expanded",open);pkFit()};
+/* Peek an den Inhalt anpassen (z. B. wenn die Farbauswahl aufgeht), damit unten nichts abgeschnitten wird */
+function pkFit(){const pk=$("peek");if(pk.hidden)return;const top=pk.getBoundingClientRect().top,old=pk.style.transition;pk.style.transition="none";pk.style.height="auto";
+  const vh=innerHeight,h=Math.min(pk.scrollHeight,vh-40);pk.style.height=h+"px";if(top+h>vh-20)pk.style.top=Math.max(20,vh-20-h)+"px";pk.offsetHeight;pk.style.transition=old}
 $("pk-colpop").addEventListener("click",e=>{e.stopPropagation();const b=e.target.closest("[data-ecol]");if(!b||!peekId)return;const ev=findEv(peekId);if(!ev)return;
   const t=colorTarget(ev),col=b.dataset.ecol||null;setEvColor(t,col);save();render();
-  const c=colOf(ev),pk=$("peek");pk.style.setProperty("--c",c);pk.style.setProperty("--ci",ink(c));fillColPop($("pk-colpop"),t);$("pk-colpop").hidden=true;$("pk-colbtn").setAttribute("aria-expanded",false)});
+  const c=colOf(ev),pk=$("peek");pk.style.setProperty("--c",c);pk.style.setProperty("--ci",ink(c));fillColPop($("pk-colpop"),t);$("pk-colpop").hidden=true;$("pk-colbtn").setAttribute("aria-expanded",false);pkFit()});
 $("ev-morebtn").onclick=()=>{$("ev-more").hidden=false;$("ev-morebtn").hidden=true};
 
 $("ev-cancel").onclick=()=>{evSaved=true;$("ev-scrim").hidden=true};
@@ -2448,7 +2477,7 @@ function setBox(pk,b){pk.style.left=b.l+"px";pk.style.top=b.t+"px";pk.style.widt
 function openPeek(el,ev){
   const c=calOf(ev.cal),ro=ROe(ev),pk=$("peek");peekId=ev.id;peekAt=Date.now();
   const pcol=colOf(ev);pk.style.setProperty("--c",pcol);pk.style.setProperty("--ci",ink(pcol));$("pk-colpop").hidden=true;$("pk-colbtn").setAttribute("aria-expanded",false);fillColPop($("pk-colpop"),colorTarget(ev));
-  $("pk-cal").textContent=c.name;$("pk-title").textContent=ev.title||"Ohne Titel";
+  $("pk-cal").textContent=c.name;$("pk-title").textContent=(isBd(ev)&&!/🎂/.test(ev.title||"")?"🎂 ":"")+(ev.title||"Ohne Titel");$("peek").querySelector(".pk-head").classList.toggle("bd",isBd(ev));
   const row=(i,t,cls)=>`<div class="pk-row${cls?" "+cls:""}">${IC[i]}<div>${t}</div></div>`;
   const md=ev.edate&&ev.edate>ev.date;
   let b=row("time",ev.allDay?esc(fmtDay(parse(ev.date)))+(md?" – "+esc(fmtDay(parse(ev.edate))):"")+"<br>ganztägig"

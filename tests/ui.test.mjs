@@ -521,9 +521,20 @@ for (const v of ["month", "tiles", "grid", "work"]) {
   const r = await pg.evaluate(() => {
     const b = [...document.querySelectorAll(".ev.bd")];
     const chip = b[0], cs = chip && getComputedStyle(chip);
-    return { n: b.length, cake: !!(chip && chip.querySelector(".cake")), white: cs && cs.color === "rgb(255, 255, 255)", mark: !!document.querySelector(".dh .bdmark"), other: [...document.querySelectorAll(".ev:not(.bd)")].some(x => /Geburtstag/.test(x.textContent)) };
+    return { n: b.length, cake: !!(chip && chip.querySelector(".cake")), white: !!cs && cs.backgroundImage.includes("gradient"), mark: !!document.querySelector(".dh .bdmark"), other: [...document.querySelectorAll(".ev:not(.bd)")].some(x => /Geburtstag/.test(x.textContent)) };
   });
   check("Geburtstag hervorgehoben (Farbe, fett, 🎂)", r.n >= 1 && r.cake && r.white && r.mark && !r.other, JSON.stringify(r));
+  const pink = await pg.evaluate(() => { const k = window._K; const c = k.S.cals[0]; c.color = "#d6336c"; const e = k.S.ev.find(x => /Geburtstag/.test(x.title)); e.cal = c.id; e.color = undefined; return [k.colOf(e), c.color]; });
+  check("Geburtstag hebt sich vom gleichfarbigen Kalender ab", pink[0] !== pink[1] && pink[0] !== "#e8467c", JSON.stringify(pink));
+  // Geburtstag mit Uhrzeit steht trotzdem oben als Ganztages-Eintrag
+  const top = await pg.evaluate(() => { const k = window._K; const e = k.S.ev.find(x => /Geburtstag/.test(x.title)); e.allDay = false; e.start = "15:30"; e.end = "16:30"; k.render(); const el = document.querySelector(".ev.bd"); return !!(el && el.closest(".allday")); });
+  check("Geburtstag mit Uhrzeit steht oben als Ganztages-Eintrag", top);
+  // Termin öffnen, Farbauswahl auf: Knöpfe unten bleiben sichtbar
+  await tapEl(pg, await pg.$(".ev.bd")); await pg.waitForTimeout(500);
+  await pg.evaluate(() => document.getElementById("pk-colbtn").click()); await pg.waitForTimeout(400);
+  const fit = await pg.evaluate(() => { const pk = document.getElementById("peek"), b = document.getElementById("pk-edit"); if (pk.hidden) return "zu"; const r = pk.getBoundingClientRect(), q = b.getBoundingClientRect(); return q.bottom <= r.bottom + 1 && q.height > 20 && document.querySelector(".pk-head").classList.contains("bd") ? "ok" : JSON.stringify([r.bottom, q.bottom, q.height]); });
+  check("Geöffneter Geburtstag: Glitzer-Kopf, nichts abgeschnitten", fit === "ok", fit);
+  await closeAll(pg);
   await pg.evaluate(() => { const c = document.getElementById("set-bd"); c.checked = false; c.dispatchEvent(new Event("change")); });
   await pg.waitForTimeout(200);
   const off = await pg.evaluate(() => document.querySelectorAll(".ev.bd").length);
