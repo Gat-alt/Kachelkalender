@@ -1,16 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <rect width="1024" height="1024" fill="#000"/>
   <g transform="translate(512 512) scale(0.95) translate(-585 -540)" fill="#fff" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Kopf mit Dutt -->
+    <!-- Kopf mit Pferdeschwanz -->
     <circle cx="400" cy="300" r="60" stroke="none"/>
-    <circle cx="342" cy="258" r="32" stroke="none"/>
-    <!-- Kleid, leicht nach vorne gebeugt -->
-    <path d="M372 378 Q410 366 448 384 L512 690 Q400 712 292 690 Z" stroke="none"/>
-    <!-- Beine -->
-    <line x1="360" y1="690" x2="338" y2="812" stroke-width="34"/>
-    <line x1="446" y1="690" x2="478" y2="812" stroke-width="34"/>
-    <line x1="318" y1="814" x2="346" y2="814" stroke-width="30"/>
-    <line x1="472" y1="814" x2="506" y2="814" stroke-width="30"/>
+    <path d="M352 262 Q300 250 286 300 Q276 352 300 392 Q306 340 340 318 Z" stroke="none"/>
+    <circle cx="348" cy="262" r="24" stroke="none"/>
+    <!-- Oberteil mit Taille -->
+    <path d="M368 380 Q410 364 452 386 L456 468 Q444 506 456 548 L476 596 L356 596 L370 548 Q382 506 370 468 Z" stroke="none"/>
+    <!-- Hose -->
+    <line x1="388" y1="585" x2="344" y2="804" stroke-width="52"/>
+    <line x1="446" y1="585" x2="478" y2="804" stroke-width="52"/>
+    <line x1="318" y1="814" x2="350" y2="814" stroke-width="30"/>
+    <line x1="472" y1="814" x2="508" y2="814" stroke-width="30"/>
     <!-- Arme -->
     <polyline points="430,410 500,470 548,488" fill="none" stroke-width="32"/>
     <polyline points="408,420 470,520 600,560" fill="none" stroke-width="32"/>

@@ -1,6 +1,6 @@
 [package]
 name = "dafar"
-version = "0.2.0"
+version = "0.2.1"
 description = "Da far – Aufgaben in farbigen Kacheln"
 edition = "2021"
 
