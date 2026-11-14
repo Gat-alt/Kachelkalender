@@ -5,3 +5,9 @@ src-tauri/gen/
 *.jks
 !android/*.enc
 keystore.properties
+
+# Da far
+dafar/dist/
+dafar/src-tauri/target/
+dafar/src-tauri/gen/
+dafar/src-tauri/icons/

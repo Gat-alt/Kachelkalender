@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Da far</title>
+<style>
+  :root{
+    --bg:#15161a; --card:#1f2026; --line:#2c2e36; --text:#f2f2f4; --muted:#9a9ca6;
+    --arbeit:#34c759; --privat:#ff4f8b; --schule:#4b8dff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:17px}
+  body{padding:env(safe-area-inset-top) 0 calc(150px + env(safe-area-inset-bottom))}
+  button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+  header{padding:18px 18px 6px}
+  h1{margin:0;font-size:26px;letter-spacing:-.3px}
+  .sub{color:var(--muted);font-size:14px;margin-top:2px}
+  .note{margin:10px 18px 0;padding:10px 12px;border-radius:10px;background:#2a2320;color:#f0c9a8;font-size:14px;display:none}
+
+  /* Projekt-Reiter */
+  .tabs{display:flex;gap:8px;padding:12px 18px 4px;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;padding:9px 14px;border-radius:999px;background:var(--card);
+    border:2px solid var(--line);font-weight:600;font-size:15px;display:flex;align-items:center;gap:7px}
+  .tab .n{opacity:.75;font-weight:500}
+  .tab.on{border-color:var(--c,#fff);background:color-mix(in srgb,var(--c,#fff) 22%,var(--card))}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--c)}
+
+  /* Projekt-Blöcke */
+  .block{margin:16px 12px 0;border-radius:16px;overflow:hidden;
+    background:color-mix(in srgb,var(--c) 9%,var(--bg));border:1.5px solid color-mix(in srgb,var(--c) 45%,transparent)}
+  .bhead{width:100%;display:flex;align-items:center;gap:10px;padding:13px 14px;
+    background:var(--c);color:#0d0d10;font-weight:800;font-size:18px;text-align:left}
+  .bhead .cnt{margin-left:auto;background:rgba(0,0,0,.18);padding:2px 10px;border-radius:999px;font-size:15px}
+  .bhead .chev{transition:transform .2s;font-size:14px}
+  .block.closed .chev{transform:rotate(-90deg)}
+  .block.closed .list{display:none}
+  .list{padding:6px 8px 8px}
+  .empty{color:var(--muted);padding:10px 8px;font-size:15px}
+
+  .task{display:flex;align-items:flex-start;gap:12px;padding:13px 10px;border-radius:12px;
+    background:var(--card);margin-top:6px;border-left:5px solid var(--c)}
+  .chk{flex:0 0 26px;height:26px;border-radius:50%;border:2.5px solid var(--c);margin-top:1px;position:relative}
+  .task.done .chk{background:var(--c)}
+  .task.done .chk::after{content:"";position:absolute;left:7px;top:3px;width:6px;height:11px;
+    border:solid #0d0d10;border-width:0 3px 3px 0;transform:rotate(45deg)}
+  .ttext{flex:1;line-height:1.35;word-break:break-word;text-align:left;padding:0}
+  .task.done .ttext{text-decoration:line-through;color:var(--muted)}
+
+  .donewrap{margin:22px 12px 0}
+  .donehead{display:flex;align-items:center;gap:10px;color:var(--muted);font-weight:600;padding:6px 6px}
+  .donehead .clear{margin-left:auto;font-size:14px;color:var(--muted);text-decoration:underline}
+  .donelist{display:none}
+  .donewrap.open .donelist{display:block}
+
+  /* Eingabe unten */
+  .composer{position:fixed;left:0;right:0;bottom:0;background:rgba(21,22,26,.97);
+    border-top:1px solid var(--line);padding:10px 12px calc(12px + env(safe-area-inset-bottom));
+    backdrop-filter:blur(8px)}
+  .pick{display:flex;gap:6px;margin-bottom:9px}
+  .pick button{flex:1;padding:8px 4px;border-radius:10px;font-weight:700;font-size:14px;
+    border:2px solid color-mix(in srgb,var(--c) 50%,transparent);color:var(--c)}
+  .pick button.on{background:var(--c);color:#0d0d10;border-color:var(--c)}
+  .row{display:flex;gap:8px;align-items:center}
+  .row input{flex:1;min-width:0;font:inherit;color:var(--text);background:var(--card);
+    border:2px solid var(--line);border-radius:14px;padding:13px 14px;outline:none}
+  .row input:focus{border-color:var(--pc,#888)}
+  .ibtn{flex:0 0 50px;height:50px;border-radius:14px;display:grid;place-items:center;background:var(--card);border:2px solid var(--line)}
+  .ibtn svg{width:24px;height:24px}
+  .send{background:var(--pc,#555);border-color:var(--pc,#555);color:#0d0d10}
+  .mic.live{background:#ff3b30;border-color:#ff3b30;animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.6}}
+  .hint{color:var(--muted);font-size:13px;margin-top:7px;min-height:17px}
+
+  /* Bearbeiten-Fenster */
+  .sheetbg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-end;z-index:20}
+  .sheetbg.show{display:flex}
+  .sheet{width:100%;background:#1c1d22;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+  .sheet textarea{width:100%;font:inherit;color:var(--text);background:var(--card);border:2px solid var(--line);
+    border-radius:12px;padding:12px;min-height:90px;resize:vertical;outline:none}
+  .sheet .pick{margin:12px 0}
+  .sheet .acts{display:flex;gap:10px}
+  .sheet .acts button{flex:1;padding:13px;border-radius:12px;font-weight:700;background:var(--card)}
+  .sheet .acts .save{background:#f2f2f4;color:#0d0d10}
+  .sheet .acts .del{color:#ff6b6b}
+
+  /* Kacheln */
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 12px 0}
+  .tile2{border-radius:20px;padding:16px;min-height:150px;text-align:left;color:#0d0d10;
+    background:var(--c);display:flex;flex-direction:column;position:relative;overflow:hidden}
+  .tile2.wide{grid-column:span 2}
+  .tile2 .tn{font-size:20px;font-weight:800}
+  .tile2 .big{font-size:46px;font-weight:800;line-height:1;margin-top:auto}
+  .tile2 .peek{font-size:14px;font-weight:600;opacity:.85;margin-top:8px;line-height:1.35}
+  .tile2 .peek div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile2 .ic{position:absolute;right:14px;top:12px;font-size:26px;opacity:.9}
+  .tile2.dark{color:var(--text)}
+  .back{display:none;align-items:center;gap:6px;font-weight:700;font-size:17px;padding:6px 0;color:var(--muted)}
+  .back.show{display:flex}
+
+  /* Datum */
+  .due{display:inline-block;margin-top:5px;font-size:13px;color:var(--muted);background:#2a2c34;padding:2px 8px;border-radius:999px}
+  .due.today{color:#0d0d10;background:#ffd60a}
+  .due.late{color:#ffb38a;background:#3a2a22}
+  .lbl{color:var(--muted);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:14px 2px 8px}
+  .quick{display:flex;gap:6px;flex-wrap:wrap}
+  .quick button{padding:8px 12px;border-radius:999px;background:var(--card);border:2px solid var(--line);font-size:14px;font-weight:600}
+  .quick button.on{background:#f2f2f4;color:#0d0d10;border-color:#f2f2f4}
+
+  /* Kachel-Kalender */
+  .cal{margin-top:10px}
+  .calnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .calnav b{font-size:17px}
+  .calnav button{width:40px;height:40px;border-radius:10px;background:var(--card);font-size:18px}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .wd{text-align:center;color:var(--muted);font-size:12px;font-weight:700;padding-bottom:2px}
+  .tile{aspect-ratio:1/1;border-radius:10px;background:var(--card);border:2px solid transparent;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-weight:700;font-size:16px;padding:0}
+  .tile.other{opacity:.35}
+  .tile.today{border-color:#ffd60a}
+  .tile.sel{background:#f2f2f4;color:#0d0d10}
+  .tile .dots{display:flex;gap:3px;height:7px}
+  .tile .dots i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+  .calview{margin:14px 12px 0;padding:12px;border-radius:16px;background:#1b1c21;border:1.5px solid var(--line)}
+  .daytitle{font-weight:800;font-size:18px;margin:16px 4px 4px}
+  .sheet{max-height:92vh;overflow-y:auto}
+
+  .toast{position:fixed;left:12px;right:12px;bottom:calc(160px + env(safe-area-inset-bottom));background:#f2f2f4;color:#111;
+    border-radius:12px;padding:12px 14px;display:none;align-items:center;gap:10px;z-index:15;font-size:15px}
+  .toast.show{display:flex}
+  .toast button{margin-left:auto;font-weight:800;color:#0a6cff}
+</style>
+</head>
+<body>
+<header>
+  <button class="back" id="back">‹ Übersicht</button>
+  <h1>Da far</h1>
+  <div class="sub" id="sub">Wird geladen …</div>
+</header>
+<div class="note" id="note"></div>
+
+<nav class="tabs" id="tabs"></nav>
+<main id="main"></main>
+
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="undo">Rückgängig</button></div>
+
+<div class="composer">
+  <div class="pick" id="pick"></div>
+  <form class="row" id="form">
+    <input id="inp" type="text" placeholder="Neue Aufgabe …" autocomplete="off" enterkeyhint="done">
+    <button type="button" class="ibtn mic" id="mic" aria-label="Spracheingabe" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+    <button type="submit" class="ibtn send" aria-label="Hinzufügen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </form>
+  <div class="hint" id="hint"></div>
+</div>
+
+<div class="sheetbg" id="sheetbg">
+  <div class="sheet">
+    <textarea id="etext"></textarea>
+    <div class="pick" id="epick"></div>
+    <div class="lbl">Datum (freiwillig)</div>
+    <div class="quick" id="equick"></div>
+    <div class="cal" id="ecal"></div>
+    <div style="height:14px"></div>
+    <div class="acts">
+      <button class="del" id="edel">Löschen</button>
+      <button id="ecancel">Abbrechen</button>
+      <button class="save" id="esave">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PROJECTS = [
+  {id:"arbeit", name:"Arbeit", color:"var(--arbeit)"},
+  {id:"privat", name:"Privat", color:"var(--privat)"},
+  {id:"schule", name:"Schule", color:"var(--schule)"},
+];
+const P = Object.fromEntries(PROJECTS.map(p=>[p.id,p]));
+
+const store = {
+  get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+
+let tasks = [];          // {id,text,project,done,created,doneAt}
+let view = "kacheln";
+let addProject = store.get("addProject","arbeit");
+let closed = store.get("closed",{});
+let doneOpen = false;
+let col = null;          // db collection
+let canWrite = true;
+let editing = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- Datum-Hilfen ---------- */
+const pad = n => String(n).padStart(2,"0");
+const iso = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+const todayIso = () => iso(new Date());
+const MONTHS=["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const WD=["Mo","Di","Mi","Do","Fr","Sa","So"];
+function dueLabel(s){
+  if(!s) return "";
+  const t=todayIso(), tm=iso(addDays(new Date(),1));
+  if(s===t) return "Heute"; if(s===tm) return "Morgen";
+  const d=new Date(s+"T12:00");
+  return ["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()]+", "+d.getDate()+". "+MONTHS[d.getMonth()].slice(0,3)+".";
+}
+function nextMonday(){ const d=new Date(); const k=(8-d.getDay())%7||7; return iso(addDays(d,k)); }
+
+// Kachel-Kalender: gibt HTML für einen Monat zurück
+function calHtml(month, selected, prefix){
+  const y=month.getFullYear(), m=month.getMonth();
+  const first=new Date(y,m,1); const shift=(first.getDay()+6)%7;
+  const start=addDays(first,-shift);
+  const open=tasks.filter(t=>!t.done && t.due);
+  let h=`<div class="calnav"><button type="button" data-${prefix}nav="-1">‹</button><b>${MONTHS[m]} ${y}</b><button type="button" data-${prefix}nav="1">›</button></div><div class="grid">`;
+  h+=WD.map(w=>`<div class="wd">${w}</div>`).join("");
+  for(let i=0;i<42;i++){
+    const d=addDays(start,i), s=iso(d);
+    if(i===35 && d.getMonth()!==m) break;
+    const cls=["tile", d.getMonth()!==m?"other":"", s===todayIso()?"today":"", s===selected?"sel":""].join(" ");
+    const dots=open.filter(t=>t.due===s).slice(0,4).map(t=>`<i style="--c:${(P[t.project]||P.privat).color}"></i>`).join("");
+    h+=`<button type="button" class="${cls}" data-${prefix}day="${s}">${d.getDate()}<span class="dots">${dots}</span></button>`;
+  }
+  return h+"</div>";
+}
+let calMonth=new Date(); calMonth.setDate(1);
+let calSel=todayIso();
+
+function note(msg){ const n=$("note"); n.textContent=msg||""; n.style.display=msg?"block":"none"; }
+
+/* ---------- Anzeige ---------- */
+function render(){
+  const open = tasks.filter(t=>!t.done);
+  const count = id => open.filter(t=>t.project===id).length;
+  $("sub").textContent = open.length===1 ? "1 offene Aufgabe" : open.length+" offene Aufgaben";
+  $("back").classList.toggle("show", view!=="kacheln");
+  $("tabs").style.display = view==="kacheln" ? "none" : "";
+
+  if(view==="kacheln"){
+    const peek = id => open.filter(t=>t.project===id).sort((a,b)=>(a.created||0)-(b.created||0))
+      .slice(0,3).map(t=>`<div>• ${esc(t.text)}</div>`).join("");
+    const today = open.filter(t=>t.due && t.due<=todayIso());
+    const now = new Date();
+    $("main").innerHTML = `<div class="tiles">
+      <button class="tile2 wide" data-view="arbeit" style="--c:var(--arbeit)"><span class="ic">💼</span>
+        <span class="tn">Arbeit</span><span class="peek">${peek("arbeit")}</span><span class="big">${count("arbeit")}</span></button>
+      <button class="tile2" data-view="privat" style="--c:var(--privat)"><span class="ic">🏠</span>
+        <span class="tn">Privat</span><span class="peek">${peek("privat")}</span><span class="big">${count("privat")}</span></button>
+      <button class="tile2" data-view="schule" style="--c:var(--schule)"><span class="ic">🎓</span>
+        <span class="tn">Schule</span><span class="peek">${peek("schule")}</span><span class="big">${count("schule")}</span></button>
+      <button class="tile2" data-view="kalender" style="--c:#ffd60a"><span class="ic">📅</span>
+        <span class="tn">${["So","Mo","Di","Mi","Do","Fr","Sa"][now.getDay()]}, ${now.getDate()}. ${MONTHS[now.getMonth()].slice(0,3)}.</span>
+        <span class="peek">${today.length?"fällig heute":"Kalender"}</span><span class="big">${today.length}</span></button>
+      <button class="tile2 dark" data-view="alle" style="--c:#2a2c34"><span class="ic">📋</span>
+        <span class="tn">Alle</span><span class="peek">alles auf einen Blick</span><span class="big">${open.length}</span></button>
+    </div>`;
+    renderPick(); return;
+  }
+
+  // Reiter
+  $("tabs").innerHTML =
+    `<button class="tab ${view==="alle"?"on":""}" data-view="alle" style="--c:#f2f2f4">Alle <span class="n">${open.length}</span></button>` +
+    PROJECTS.map(p=>`<button class="tab ${view===p.id?"on":""}" data-view="${p.id}" style="--c:${p.color}"><span class="dot"></span>${p.name} <span class="n">${count(p.id)}</span></button>`).join("") +
+    `<button class="tab ${view==="kalender"?"on":""}" data-view="kalender" style="--c:#ffd60a">📅 Kalender</button>`;
+
+  if(view==="kalender"){
+    const day=open.filter(t=>t.due===calSel);
+    const late=open.filter(t=>t.due && t.due<todayIso());
+    $("main").innerHTML =
+      `<div class="calview">${calHtml(calMonth, calSel, "v")}</div>
+       <div class="daytitle" style="margin-left:16px">${dueLabel(calSel)}</div>
+       <div style="padding:0 12px">${day.length?day.map(taskHtml).join(""):`<div class="empty">Nichts geplant. Tippe auf eine Aufgabe und gib ihr ein Datum.</div>`}</div>
+       ${late.length&&calSel===todayIso()?`<div class="daytitle" style="margin-left:16px">Noch offen von früher</div><div style="padding:0 12px">${late.map(taskHtml).join("")}</div>`:""}`;
+    renderPick(); return;
+  }
+
+  // Blöcke
+  const shown = view==="alle" ? PROJECTS : [P[view]];
+  let html = shown.map(p=>{
+    const items = open.filter(t=>t.project===p.id).sort((a,b)=>(a.created||0)-(b.created||0));
+    const isClosed = view==="alle" && closed[p.id];
+    return `<section class="block ${isClosed?"closed":""}" style="--c:${p.color}">
+      <button class="bhead" data-toggle="${p.id}"><span class="chev">▼</span>${p.name}<span class="cnt">${items.length}</span></button>
+      <div class="list">${items.length ? items.map(taskHtml).join("") : `<div class="empty">Nichts offen 🎉</div>`}</div>
+    </section>`;
+  }).join("");
+
+  // Erledigt
+  const done = tasks.filter(t=>t.done && (view==="alle"||t.project===view))
+                    .sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
+  if(done.length){
+    html += `<section class="donewrap ${doneOpen?"open":""}">
+      <div class="donehead"><button data-doneopen>${doneOpen?"▼":"▶"} Erledigt (${done.length})</button>
+      ${canWrite?`<button class="clear" data-clear>Alle löschen</button>`:""}</div>
+      <div class="donelist">${done.map(taskHtml).join("")}</div></section>`;
+  }
+  $("main").innerHTML = html;
+  renderPick();
+}
+
+function taskHtml(t){
+  const p = P[t.project] || P.privat;
+  return `<div class="task ${t.done?"done":""}" style="--c:${p.color}">
+    <button class="chk" data-check="${t.id}" aria-label="Erledigt"></button>
+    <button class="ttext" data-edit="${t.id}">${esc(t.text)}${t.due&&!t.done?`<br><span class="due ${t.due===todayIso()?"today":t.due<todayIso()?"late":""}">📅 ${dueLabel(t.due)}</span>`:""}</button>
+  </div>`;
+}
+
+function renderPick(){
+  const btns = PROJECTS.map(p=>`<button type="button" class="${addProject===p.id?"on":""}" data-pick="${p.id}" style="--c:${p.color}">${p.name}</button>`).join("");
+  $("pick").innerHTML = btns;
+  document.querySelector(".composer").style.setProperty("--pc", P[addProject].color);
+}
+
+/* ---------- Klicks ---------- */
+document.addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  if(b.dataset.view){ view=b.dataset.view; store.set("view",view);
+    if(P[view]){ addProject=view; store.set("addProject",addProject); } render(); }
+  else if(b.dataset.toggle && view==="alle"){ closed[b.dataset.toggle]=!closed[b.dataset.toggle]; store.set("closed",closed); render(); }
+  else if(b.dataset.pick && b.closest("#pick")){ addProject=b.dataset.pick; store.set("addProject",addProject); renderPick(); }
+  else if(b.dataset.vnav){ calMonth=new Date(calMonth.getFullYear(), calMonth.getMonth()+Number(b.dataset.vnav), 1); render(); }
+  else if(b.dataset.vday){ calSel=b.dataset.vday; render(); }
+  else if(b.dataset.check){ toggleDone(b.dataset.check); }
+  else if(b.dataset.edit){ openEdit(b.dataset.edit); }
+  else if(b.hasAttribute("data-doneopen")){ doneOpen=!doneOpen; render(); }
+  else if(b.hasAttribute("data-clear")){ clearDone(); }
+});
+
+$("back").onclick = ()=>{ view="kacheln"; render(); window.scrollTo(0,0); };
+
+/* ---------- Speichern ---------- */
+async function write(fn){
+  if(!col){ note("Speichern ist gerade nicht möglich."); return false; }
+  try{ await fn(); return true; }
+  catch(err){
+    note("Konnte nicht speichern. Ist der Speicher des Handys voll?");
+    return false;
+  }
+}
+
+function parseVoice(text){
+  // „Privat Bauchtasche abholen“ → Projekt Privat
+  // „… morgen“ am Ende → Datum morgen
+  let project=addProject, s=text.trim(), due=null;
+  const m = s.match(/^(arbeit|privat|schule)[\s,:.-]+(.+)$/i);
+  if(m){ project=m[1].toLowerCase(); s=m[2].trim(); }
+  const d = s.match(/^(.+?)[\s,]+(heute|morgen|übermorgen)[.!]?$/i);
+  if(d){ s=d[1].trim(); const w=d[2].toLowerCase();
+    due = iso(addDays(new Date(), w==="heute"?0:w==="morgen"?1:2)); }
+  if(!due && view==="kalender") due=calSel;
+  return {project, text:s, due};
+}
+
+$("form").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const raw = $("inp").value; if(!raw.trim()) return;
+  const {project,text,due} = parseVoice(raw);
+  const t = {text: text.charAt(0).toUpperCase()+text.slice(1), project, due, done:false, created:Date.now()};
+  $("inp").value = "";
+  const ok = await write(()=>col.add(t));
+  if(!ok) $("inp").value = raw;
+  else if(P[view] && view!==project){ view="alle"; store.set("view",view); render(); }
+});
+
+let lastDone=null, toastTimer=null;
+async function toggleDone(id){
+  const t = tasks.find(x=>x.id===id); if(!t) return;
+  const done = !t.done;
+  const ok = await write(()=>col.doc(id).update({done, doneAt: done?Date.now():null}));
+  if(ok && done){ lastDone=id; showToast("Erledigt ✓"); }
+}
+function showToast(msg){
+  $("toastMsg").textContent=msg; $("toast").classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>$("toast").classList.remove("show"),4000);
+}
+$("undo").onclick = async ()=>{
+  $("toast").classList.remove("show");
+  if(lastDone) await write(()=>col.doc(lastDone).update({done:false, doneAt:null}));
+  lastDone=null;
+};
+async function clearDone(){
+  const ids = tasks.filter(t=>t.done && (view==="alle"||t.project===view)).map(t=>t.id);
+  for(const id of ids){ await write(()=>col.doc(id).delete()); }
+}
+
+/* ---------- Bearbeiten ---------- */
+let editProject=null, editDue=null, editMonth=new Date();
+function openEdit(id){
+  const t = tasks.find(x=>x.id===id); if(!t) return;
+  editing=id; editProject=t.project; editDue=t.due||null;
+  editMonth = editDue ? new Date(editDue+"T12:00") : new Date(); editMonth.setDate(1);
+  $("etext").value=t.text; renderEditPick(); renderEditDate(); $("sheetbg").classList.add("show");
+}
+function renderEditPick(){
+  $("epick").innerHTML = PROJECTS.map(p=>`<button type="button" class="${editProject===p.id?"on":""}" data-ep="${p.id}" style="--c:${p.color}">${p.name}</button>`).join("");
+}
+function renderEditDate(){
+  const opts=[["","Kein Datum"],[todayIso(),"Heute"],[iso(addDays(new Date(),1)),"Morgen"],[nextMonday(),"Nächste Woche"]];
+  $("equick").innerHTML = opts.map(([v,l])=>`<button type="button" class="${(editDue||"")===v?"on":""}" data-eq="${v}">${l}</button>`).join("");
+  $("ecal").innerHTML = calHtml(editMonth, editDue, "e");
+}
+
+$("epick").addEventListener("click",e=>{const b=e.target.closest("[data-ep]"); if(b){editProject=b.dataset.ep; renderEditPick();}});
+$("equick").addEventListener("click",e=>{const b=e.target.closest("[data-eq]"); if(!b) return;
+  editDue=b.dataset.eq||null; if(editDue){editMonth=new Date(editDue+"T12:00"); editMonth.setDate(1);} renderEditDate();});
+$("ecal").addEventListener("click",e=>{
+  const n=e.target.closest("[data-enav]"), d=e.target.closest("[data-eday]");
+  if(n){ editMonth=new Date(editMonth.getFullYear(), editMonth.getMonth()+Number(n.dataset.enav), 1); renderEditDate(); }
+  if(d){ editDue = editDue===d.dataset.eday ? null : d.dataset.eday; renderEditDate(); }
+});
+const closeEdit=()=>{ $("sheetbg").classList.remove("show"); editing=null; };
+$("ecancel").onclick=closeEdit;
+$("sheetbg").addEventListener("click",e=>{ if(e.target.id==="sheetbg") closeEdit(); });
+$("esave").onclick=async()=>{
+  const id=editing, text=$("etext").value.trim(); closeEdit();
+  if(id && text) await write(()=>col.doc(id).update({text, project:editProject, due:editDue}));
+};
+$("edel").onclick=async()=>{ const id=editing; closeEdit(); if(id) await write(()=>col.doc(id).delete()); };
+
+/* ---------- Speicher: alles nur auf diesem Gerät ---------- */
+const DKEY="dafar-tasks";
+function persist(){ try{ localStorage.setItem(DKEY, JSON.stringify(tasks)); }catch(e){ throw e; } render(); }
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+col = {
+  add: async d=>{ tasks.push({id:uid(), ...d}); persist(); },
+  doc: id=>({
+    update: async p=>{ const t=tasks.find(x=>x.id===id); if(t){ Object.assign(t,p); persist(); } },
+    delete: async ()=>{ tasks=tasks.filter(x=>x.id!==id); persist(); },
+  }),
+};
+try{ tasks = JSON.parse(localStorage.getItem(DKEY)||"[]"); }catch(e){ tasks=[]; note("Gespeicherte Aufgaben konnten nicht gelesen werden."); }
+// Neuer Tag: Anzeige von „Heute“ und „Morgen“ aktuell halten
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) render(); });
+render();
+
+/* ---------- Spracheingabe: Whisper läuft auf dem Gerät, die Aufnahme verlässt es nie ---------- */
+{
+  const mic=$("mic"), WKEY="dafar-whisper";
+  let W=null, rec=null, chunks=[], stream=null, stopT=null, state="idle";
+  const hint=t=>$("hint").textContent=t;
+  const ready=()=>{ try{ return localStorage.getItem(WKEY)==="1"; }catch(e){ return false; } };
+  const mod=async()=>{ if(!W) W=await import("./whisper.mjs"); return W; };
+  const setState=s=>{ state=s; mic.classList.toggle("live", s==="rec"); mic.style.opacity = s==="busy" ? ".5" : ""; };
+  const prog=(f,t)=>{ if(state==="busy" && t) hint("Spracheingabe wird eingerichtet … "+Math.round(f*100)+" % (einmalig ca. "+Math.round(t/1e6)+" MB)"); };
+
+  if(navigator.mediaDevices && window.MediaRecorder){
+    mic.hidden=false;
+    hint("🎤 antippen und sprechen, z. B. „Privat Bauchtasche abholen morgen“.");
+  } else hint("Tipp: Sag zuerst „Arbeit“, „Privat“ oder „Schule“.");
+
+  async function begin(){
+    try{ stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}}); }
+    catch(e){ hint("Kein Zugriff aufs Mikrofon. Bitte in den Handy-Einstellungen für Da far erlauben."); return; }
+    chunks=[]; rec=new MediaRecorder(stream);
+    rec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop=finish; rec.start(); setState("rec");
+    hint("Ich höre zu … nochmals tippen zum Beenden.");
+    stopT=setTimeout(()=>{ if(rec && rec.state==="recording") rec.stop(); },20000);
+    mod().then(w=>w.load(prog)).catch(()=>{}); // Modell schon während des Sprechens vorbereiten
+  }
+  async function finish(){
+    clearTimeout(stopT); stream && stream.getTracks().forEach(t=>t.stop()); stream=null; setState("busy");
+    const blob=new Blob(chunks,{type:(rec && rec.mimeType)||"audio/webm"}); rec=null; chunks=[];
+    try{
+      const w=await mod(); if(!w.isReady()) hint("Spracheingabe wird eingerichtet … (einmalig, danach offline)");
+      await w.load(prog); hint("Wird erkannt …");
+      const text=await w.transcribe(blob);
+      try{ localStorage.setItem(WKEY,"1"); }catch(e){}
+      setState("idle");
+      if(!text || text.length<2){ hint("Nichts verstanden. Bitte nochmals deutlich sprechen."); return; }
+      const inp=$("inp"); inp.value=((inp.value.trim()+" "+text).trim()).replace(/[.!]+$/,"");
+      hint("Prüfen und mit + speichern.");
+    }catch(e){
+      setState("idle");
+      hint(String(e && e.message || e).includes("fetch") || !navigator.onLine
+        ? "Für die Einrichtung braucht es einmal Internet (WLAN empfohlen)."
+        : "Spracheingabe gerade nicht möglich. Bitte später nochmals versuchen.");
+    }
+  }
+  let armed=false;
+  mic.addEventListener("click",()=>{
+    if(state==="rec"){ rec && rec.state==="recording" && rec.stop(); return; }
+    if(state==="busy") return;
+    if(!ready() && !armed){
+      armed=true;
+      hint("Beim ersten Mal lädt Da far die Spracherkennung (ca. 80 MB, am besten im WLAN). Deine Stimme bleibt immer auf dem Handy. Tippe nochmals auf 🎤.");
+      return;
+    }
+    begin();
+  });
+}
+</script>
+</body>
+</html>

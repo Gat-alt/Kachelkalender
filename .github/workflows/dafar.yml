@@ -1,0 +1,90 @@
+# Baut die Handy-App «Da far» (Aufgaben in farbigen Kacheln), sobald die Versionsnummer in
+# dafar/src-tauri/tauri.conf.json steigt, und legt die APK unter «Releases» ab (Tag dafar-v<Version>).
+# Die Releases sind als Vorabversion markiert, damit Obtainium sie nicht mit dem Kachelkalender verwechselt.
+name: Da far bauen
+
+on:
+  push:
+    branches: [main, dafar]
+    paths: ["dafar/src-tauri/tauri.conf.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dafar-bauen
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: dafar
+    steps:
+      - uses: actions/checkout@v5
+      - name: Version lesen
+        run: echo "APP_VERSION=v$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Android SDK/NDK (auf dem Bau-Computer vorinstalliert)
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./dafar/src-tauri -> target"
+      - run: npm ci
+        working-directory: .
+      - name: Oberfläche bauen (Datenschutz-Prüfung inklusive)
+        run: node ../scripts/build-dafar.mjs
+      - name: App-Symbol
+        run: ../node_modules/.bin/tauri icon icon.png
+      - run: ../node_modules/.bin/tauri android init --ci
+      - name: Mikrofon-Recht (Spracheingabe, nur auf Knopfdruck)
+        run: |
+          M=src-tauri/gen/android/app/src/main/AndroidManifest.xml
+          grep -q RECORD_AUDIO "$M" || sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <application#' "$M"
+          grep -n "permission" "$M"
+      - name: Tastatur schiebt das Fenster hoch
+        run: |
+          M=src-tauri/gen/android/app/src/main/AndroidManifest.xml
+          grep -q windowSoftInputMode "$M" && sed -i 's#android:windowSoftInputMode="[^"]*"#android:windowSoftInputMode="adjustResize"#' "$M" || sed -i '0,/<activity/s#<activity#<activity android:windowSoftInputMode="adjustResize"#' "$M"
+      - name: Symbol-Hintergrund dunkel
+        run: |
+          ../node_modules/.bin/tauri icon icon.png
+          find src-tauri -name ic_launcher_background.xml -print -exec sed -i 's/#[0-9A-Fa-f]\{6\}/#2E3035/' {} \;
+      - name: Signatur-Passwort vorhanden?
+        id: key
+        env:
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEY_PASSWORD" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "::error::Secret ANDROID_KEY_PASSWORD fehlt"; exit 1; fi
+      - name: App signieren (gleicher Schlüssel für jedes Update)
+        env:
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in ../android/kachelkalender.jks.enc -out "$RUNNER_TEMP/kachelkalender.jks" -pass env:ANDROID_KEY_PASSWORD
+          printf "keyAlias=kachelkalender\npassword=%s\nstoreFile=%s\n" "$ANDROID_KEY_PASSWORD" "$RUNNER_TEMP/kachelkalender.jks" > src-tauri/gen/android/keystore.properties
+          node ../scripts/android-signing.mjs
+      - run: ../node_modules/.bin/tauri android build --apk --target aarch64 --target armv7
+      - name: Datei benennen
+        run: cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "Da-far-${APP_VERSION}.apk"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dafar-${{ env.APP_VERSION }}
+          name: "Da far ${{ env.APP_VERSION }}"
+          body: "Da far – Aufgaben in farbigen Kacheln. In Obtainium: «Vorabversionen einbeziehen» einschalten und als Titel-Filter «Da far» eintragen."
+          prerelease: true
+          target_commitish: ${{ github.sha }}
+          files: dafar/Da-far-*.apk
