@@ -358,43 +358,70 @@ async function write(fn){
 }
 
 function parseVoice(text){
-  // Versteht frei Gesprochenes: Projekt irgendwo im Satz („betrifft Arbeit“, „…, privat“),
-  // Datum („morgen“, „am Freitag“, „nächste Woche“), Füllwörter weg, kurzer Titel.
-  // Der ganze gesprochene Text bleibt als Notiz erhalten.
+  // Versteht frei Gesprochenes wie Todoist-Ramble, aber mit festen Regeln direkt auf dem Handy:
+  // Projekt irgendwo im Satz, Datum, Füll- und Ansagewörter weg („neue Aufgabe für Arbeit, das wäre …“),
+  // der eigentliche Auftrag wird zum kurzen Titel. Der ganze Text bleibt als Notiz erhalten.
   const orig = text.trim().replace(/\s+/g," ");
   let s = " "+orig+" ", project=addProject, due=null;
   const PW = "arbeit|job|büro|geschäft|privat|daheim|zuhause|persönlich|schule|zhaw|uni|studium|hochschule";
   const toP = w => /^(arbeit|job|büro|geschäft)$/i.test(w) ? "arbeit" : /^(schule|zhaw|uni|studium|hochschule)$/i.test(w) ? "schule" : "privat";
+  const ART = "(?:die\\s+|der\\s+|das\\s+|den\\s+|dem\\s+)?";
   const pats = [
-    new RegExp(`[\\s,.]*(?:das\\s+)?(?:betrifft|betreffend|gehört|kommt|tu(?:e)?\\s+(?:das|es)|projekt|kategorie|thema|bereich)\\s+(?:mit\\s+|zu[rm]?\\s+|in(?:s|\\s+die|\\s+den)?\\s+|unter\\s+|bei\\s+|für\\s+)?(?:die\\s+|der\\s+|das\\s+)?(${PW})\\b[\\s,.:;!-]*`,"i"),
+    // „neue Aufgabe für Arbeit“, „Aufgabe bei der Arbeit“
+    new RegExp(`(?:eine?\\s+)?(?:neue\\s+)?aufgabe\\s+(?:für|bei|im|in|zu[rm]?|von|betreffend)\\s+${ART}(${PW})\\b[\\s,.:;!-]*`,"i"),
+    // „betrifft (mit) Arbeit“, „gehört zu privat“, „tu das zu Schule“
+    new RegExp(`[\\s,.]*(?:das\\s+)?(?:betrifft|betreffend|gehört|kommt|tu(?:e)?\\s+(?:das|es)|projekt|kategorie|thema|bereich)\\s+(?:mit\\s+|zu[rm]?\\s+|in(?:s|\\s+die|\\s+den)?\\s+|unter\\s+|bei\\s+|für\\s+)?${ART}(${PW})\\b[\\s,.:;!-]*`,"i"),
+    // „Arbeit: …“ am Anfang
     new RegExp(`^\\s*(${PW})\\b[\\s,.:;!-]+`,"i"),
-    new RegExp(`[\\s,.;-]+(?:zu[rm]?\\s+|für\\s+(?:die\\s+)?|ins?\\s+)?(${PW})[\\s.!?]*$`,"i"),
+    // „…, privat“ / „… für die Arbeit“ am Ende
+    new RegExp(`[\\s,.;-]+(?:zu[rm]?\\s+|für\\s+${ART}|ins?\\s+|bei\\s+${ART})?(${PW})[\\s.!?]*$`,"i"),
+    // „für die Arbeit“ irgendwo als eigener Satzteil
+    new RegExp(`[\\s,]+(?:für|bei)\\s+${ART}(arbeit|schule|zhaw|uni)\\b(?=\\s*[,.;:!?])[\\s,]*`,"i"),
   ];
   let found=false;
-  for(const re of pats){ const m=s.match(re); if(m){ project=toP(m[1]); s=s.replace(re," "); found=true; break; } }
-  // Eindeutige Wörter irgendwo im Satz („Präsentation für die ZHAW“) bestimmen das Projekt, bleiben aber stehen
-  if(!found){ const m=s.match(/\b(zhaw|uni|studium|hochschule|prüfung|büro|daheim|zuhause)\b/i); if(m) project=toP(m[1]==="prüfung"?"schule":m[1]); }
+  for(const re of pats){ const m=s.match(re); if(m){ project=toP(m[1]); s=s.replace(re," , "); found=true; break; } }
+  if(!found){ const m=s.match(/\b(zhaw|uni|studium|hochschule|prüfung|büro|daheim|zuhause)\b/i); if(m) project=toP(m[1].toLowerCase()==="prüfung"?"schule":m[1]); }
 
   // Datum
   const WDN=["sonntag","montag","dienstag","mittwoch","donnerstag","freitag","samstag"];
-  const dm = s.match(/[\s,]*(?:bis\s+|am\s+|für\s+)?(übermorgen|morgen|heute|nächste\s+woche|(?:nächsten\s+)?(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))\b[\s,.]*/i);
+  const dm = s.match(/[\s,]*(?:bis\s+(?:zum\s+|am\s+)?|am\s+|für\s+|auf\s+)?(übermorgen|morgen|heute|nächste\s+woche|(?:nächsten\s+|kommenden\s+)?(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))\b[\s,.]*/i);
   if(dm){
     const w=dm[1].toLowerCase().replace(/\s+/g," "), now=new Date();
     if(w==="heute") due=iso(now); else if(w==="morgen") due=iso(addDays(now,1)); else if(w==="übermorgen") due=iso(addDays(now,2));
     else if(w==="nächste woche") due=nextMonday();
-    else { const k=WDN.indexOf(w.replace("nächsten ","")); let n=(k-now.getDay()+7)%7||7; due=iso(addDays(now,n)); }
-    s=s.replace(dm[0]," ");
+    else { const k=WDN.indexOf(w.replace(/^(nächsten|kommenden) /,"")); let n=(k-now.getDay()+7)%7||7; due=iso(addDays(now,n)); }
+    s=s.replace(dm[0]," , ");
   }
   if(!due && view==="kalender") due=calSel;
 
-  // Füllwörter am Satzanfang
-  const FILL=/^\s*(?:[,.:;!?-]+|also|okay|ok|äh+m?|ähm|hm+|so|gut|ja|und|aber|neue\s+aufgabe|eine\s+neue\s+aufgabe|aufgabe|und\s+zwar|zwar|bitte|ich\s+muss|ich\s+sollte|ich\s+möchte|ich\s+will|nicht\s+vergessen|erinnere?\s+mich(?:\s+daran)?|tu(?:e)?\s+das|füge?\s+hinzu|schreib(?:e)?\s+auf|notiere?|dass\s+ich|noch)(?=[\s,.:;!?]|$)/i;
-  const clean = x => { let y=x, p; do{ p=y; y=y.replace(FILL,""); }while(y!==p); return y.trim(); };
-  const sentences = s.split(/(?<=[.?!])\s+/).map(clean).map(x=>x.replace(/[\s,.;:!-]+$/,"").trim()).filter(x=>x.length>2);
-  let title = sentences[0] || clean(s) || orig;
-  if(title.length>70){ const c=title.slice(0,70); title=(c.lastIndexOf(",")>30?c.slice(0,c.lastIndexOf(",")):c.slice(0,c.lastIndexOf(" ")))+" …"; }
+  // Füll- und Ansagewörter am Anfang eines Satzteils (wiederholt entfernt)
+  const FILL=new RegExp("^\\s*(?:[,.:;!?\\-–]+|also|okay|ok|äh+m?|ähm|hm+|so|gut|ja|nein|nee|genau|und|aber|dann|jetzt|hier|mal|noch|eben|halt|"+
+    "(?:eine?\\s+)?(?:neue\\s+)?aufgabe(?:\\s+wäre)?|neue|und\\s+zwar|zwar|bitte|"+
+    "das\\s+wäre|das\\s+ist|es\\s+wäre|es\\s+ist|es\\s+geht\\s+um|geht\\s+um|"+
+    "ich\\s+(?:muss|müsste|sollte|möchte|will|würde|hätte\\s+gern(?:e)?)|ich\\s+mache?|mache?\\s+ich|mach(?:e)?|"+
+    "nicht\\s+vergessen|erinnere?\\s+mich(?:\\s+daran)?|tu(?:e)?\\s+das|füge?\\s+hinzu|schreib(?:e)?\\s+auf|notiere?|dass\\s+ich|"+
+    "eine?|einen|ein|die|der|das|den)(?=[\\s,.:;!?]|$)","i");
+  const clean = x => { let y=x, p; do{ p=y; y=y.replace(FILL,""); }while(y!==p); return y.replace(/[\s,.;:!\-–]+$/,"").trim(); };
+  const words = x => x.split(/\s+/).filter(Boolean).length;
+
+  // In Sätze und Satzteile zerlegen, den ersten echten Auftrag nehmen (Fragen nur, wenn nichts anderes da ist)
+  const parts = s.split(/(?<=[.?!])\s+|\s*,\s*/).map(x=>({q:/\?\s*$/.test(x), t:clean(x)}))
+    .filter(x=>x.t.length>2 && !/^(arbeit|privat|schule)$/i.test(x.t));
+  let pick = parts.find(x=>!x.q && words(x.t)>=2) || parts.find(x=>!x.q) || parts[0];
+  let title = pick ? pick.t : (clean(s) || orig);
+
+  // Hauptwort am Ende → Tätigkeit: „Offerte für Nadia Anfrage“ → „Offerte für Nadia anfragen“
+  const VERB={anfrage:"anfragen",vorbereitung:"vorbereiten",abgabe:"abgeben",abholung:"abholen",bestellung:"bestellen",
+    erledigung:"erledigen",kontrolle:"kontrollieren",korrektur:"korrigieren",planung:"planen",zahlung:"bezahlen",
+    überprüfung:"überprüfen",anmeldung:"anmelden",abmeldung:"abmelden",rückmeldung:"zurückmelden",besprechung:"besprechen"};
+  title = title.replace(/^(.+?)\s+(\S+)$/, (m,a,b)=>VERB[b.toLowerCase()] && words(a)>=1 ? a+" "+VERB[b.toLowerCase()] : m);
+  // „Vorbereitung von/der X“ → „X vorbereiten“
+  title = title.replace(/^(\S+ung)\s+(?:von\s+(?:der\s+|dem\s+|den\s+)?|der\s+|des\s+|für\s+(?:die\s+|den\s+|das\s+)?)(.+)$/i,
+    (m,a,b)=>VERB[a.toLowerCase()] ? b+" "+VERB[a.toLowerCase()] : m);
+
+  if(title.length>60){ const c=title.slice(0,60); title=c.slice(0,Math.max(c.lastIndexOf(" "),30)).replace(/[\s,]+$/,"")+" …"; }
   title = title.charAt(0).toUpperCase()+title.slice(1);
-  const note = sentences.length>1 || title.endsWith("…") || title.length < orig.length-15 ? orig : "";
+  const note = title.toLowerCase().replace(/\W/g,"") !== orig.toLowerCase().replace(/\W/g,"") && orig.length > title.length+8 ? orig : "";
   return {project, text:title, due, note};
 }
 
@@ -403,7 +430,7 @@ $("form").addEventListener("submit", async e=>{
   const raw = $("inp").value; if(!raw.trim()) return;
   const {project,text,due,note} = parseVoice(raw);
   const t = {text, project, due, note, done:false, created:Date.now()};
-  $("inp").value = "";
+  $("inp").value = ""; $("hint").textContent = "Gespeichert in „"+P[project].name+"“: "+text;
   const ok = await write(()=>col.add(t));
   if(!ok) $("inp").value = raw;
   else if(P[view] && view!==project){ view="alle"; store.set("view",view); render(); }
@@ -477,6 +504,22 @@ col = {
   }),
 };
 try{ tasks = JSON.parse(localStorage.getItem(DKEY)||"[]"); }catch(e){ tasks=[]; note("Gespeicherte Aufgaben konnten nicht gelesen werden."); }
+// Einmalig: lange, gesprochene Aufgaben von früher kurz zusammenfassen. Projekt und Datum bleiben, das Original bleibt als Notiz.
+try{
+  if(localStorage.getItem("dafar-aufraeumen")!=="2"){
+    let changed=false;
+    for(const t of tasks){
+      if(t.done) continue;
+      const src=t.note||t.text;
+      if(!(t.text.length>60 || t.text.endsWith("…") || /^(also|nein|okay|ok|ein|eine|neue|aufgabe)\b/i.test(t.text))) continue;
+      const keep=addProject; addProject=t.project; const v=view; view="";
+      const pv=parseVoice(src); addProject=keep; view=v;
+      if(pv.text && pv.text!==t.text){ t.text=pv.text; t.note=src; changed=true; }
+    }
+    if(changed) localStorage.setItem(DKEY, JSON.stringify(tasks));
+    localStorage.setItem("dafar-aufraeumen","2");
+  }
+}catch(e){}
 // Neuer Tag: Anzeige von „Heute“ und „Morgen“ aktuell halten
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden) render(); });
 render();
