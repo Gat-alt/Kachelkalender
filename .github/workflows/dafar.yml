@@ -17,7 +17,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Zuerst automatisch durch die App tippen. Schlägt etwas fehl, wird nichts gebaut.
+  pruefen:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Automatische Prüfung
+        run: node scripts/build-dafar.mjs && node tests/dafar.test.mjs
+
   android:
+    needs: pruefen
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -60,10 +75,10 @@ jobs:
         run: |
           M=src-tauri/gen/android/app/src/main/AndroidManifest.xml
           grep -q windowSoftInputMode "$M" && sed -i 's#android:windowSoftInputMode="[^"]*"#android:windowSoftInputMode="adjustResize"#' "$M" || sed -i '0,/<activity/s#<activity#<activity android:windowSoftInputMode="adjustResize"#' "$M"
-      - name: Symbol-Hintergrund dunkel
+      - name: Symbol-Hintergrund schwarz
         run: |
           npm run tauri -- icon icon.png
-          find src-tauri -name ic_launcher_background.xml -print -exec sed -i 's/#[0-9A-Fa-f]\{6\}/#2E3035/' {} \;
+          find src-tauri -name ic_launcher_background.xml -print -exec sed -i 's/#[0-9A-Fa-f]\{6\}/#000000/' {} \;
       - name: Signatur-Passwort vorhanden?
         id: key
         env:

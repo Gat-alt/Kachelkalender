@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect width="1024" height="1024" fill="#000"/>
+  <g transform="translate(512 512) scale(0.95) translate(-585 -540)" fill="#fff" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Kopf mit Dutt -->
+    <circle cx="400" cy="300" r="60" stroke="none"/>
+    <circle cx="342" cy="258" r="32" stroke="none"/>
+    <!-- Kleid, leicht nach vorne gebeugt -->
+    <path d="M372 378 Q410 366 448 384 L512 690 Q400 712 292 690 Z" stroke="none"/>
+    <!-- Beine -->
+    <line x1="360" y1="690" x2="338" y2="812" stroke-width="34"/>
+    <line x1="446" y1="690" x2="478" y2="812" stroke-width="34"/>
+    <line x1="318" y1="814" x2="346" y2="814" stroke-width="30"/>
+    <line x1="472" y1="814" x2="506" y2="814" stroke-width="30"/>
+    <!-- Arme -->
+    <polyline points="430,410 500,470 548,488" fill="none" stroke-width="32"/>
+    <polyline points="408,420 470,520 600,560" fill="none" stroke-width="32"/>
+    <!-- Schaufel -->
+    <line x1="500" y1="440" x2="712" y2="640" stroke-width="22"/>
+    <line x1="484" y1="424" x2="516" y2="456" stroke-width="40"/>
+    <path d="M690 628 L790 600 Q830 650 812 726 L716 722 Q690 680 690 628 Z" stroke="none"/>
+    <!-- Weggeschaufelte Sachen -->
+    <rect x="796" y="500" width="54" height="54" rx="10" transform="rotate(18 823 527)" stroke="none"/>
+    <rect x="850" y="380" width="44" height="44" rx="8" transform="rotate(-22 872 402)" stroke="none"/>
+    <rect x="880" y="276" width="34" height="34" rx="7" transform="rotate(30 897 293)" stroke="none"/>
+    <circle cx="905" cy="196" r="13" stroke="none"/>
+    <circle cx="760" cy="440" r="10" stroke="none"/>
+    <!-- Schwung -->
+    <path d="M760 560 Q800 420 860 330" fill="none" stroke-width="12" opacity=".55"/>
+    <path d="M728 520 Q760 400 812 320" fill="none" stroke-width="9" opacity=".35"/>
+  </g>
+</svg>

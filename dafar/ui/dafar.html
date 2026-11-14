@@ -7,7 +7,7 @@
 <style>
   :root{
     --bg:#15161a; --card:#1f2026; --line:#2c2e36; --text:#f2f2f4; --muted:#9a9ca6;
-    --arbeit:#34c759; --privat:#ff4f8b; --schule:#4b8dff;
+    --arbeit:#5fae6e; --privat:#d0688f; --schule:#6b8fd6; --gelb:#d4b45a;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--text);
@@ -32,7 +32,9 @@
   .block{margin:16px 12px 0;border-radius:16px;overflow:hidden;
     background:color-mix(in srgb,var(--c) 9%,var(--bg));border:1.5px solid color-mix(in srgb,var(--c) 45%,transparent)}
   .bhead{width:100%;display:flex;align-items:center;gap:10px;padding:13px 14px;
-    background:var(--c);color:#0d0d10;font-weight:800;font-size:18px;text-align:left}
+    background:color-mix(in srgb,var(--c) 26%,#1f2026);color:var(--text);font-weight:800;font-size:18px;text-align:left;
+    border-bottom:2px solid color-mix(in srgb,var(--c) 60%,transparent)}
+  .bhead .chev{color:var(--c)}
   .bhead .cnt{margin-left:auto;background:rgba(0,0,0,.18);padding:2px 10px;border-radius:999px;font-size:15px}
   .bhead .chev{transition:transform .2s;font-size:14px}
   .block.closed .chev{transform:rotate(-90deg)}
@@ -62,14 +64,14 @@
   .pick{display:flex;gap:6px;margin-bottom:9px}
   .pick button{flex:1;padding:8px 4px;border-radius:10px;font-weight:700;font-size:14px;
     border:2px solid color-mix(in srgb,var(--c) 50%,transparent);color:var(--c)}
-  .pick button.on{background:var(--c);color:#0d0d10;border-color:var(--c)}
+  .pick button.on{background:color-mix(in srgb,var(--c) 30%,#1f2026);color:var(--text);border-color:var(--c)}
   .row{display:flex;gap:8px;align-items:center}
   .row input{flex:1;min-width:0;font:inherit;color:var(--text);background:var(--card);
     border:2px solid var(--line);border-radius:14px;padding:13px 14px;outline:none}
   .row input:focus{border-color:var(--pc,#888)}
   .ibtn{flex:0 0 50px;height:50px;border-radius:14px;display:grid;place-items:center;background:var(--card);border:2px solid var(--line)}
   .ibtn svg{width:24px;height:24px}
-  .send{background:var(--pc,#555);border-color:var(--pc,#555);color:#0d0d10}
+  .send{background:color-mix(in srgb,var(--pc,#555) 35%,#1f2026);border-color:var(--pc,#555);color:var(--text)}
   .mic.live{background:#ff3b30;border-color:#ff3b30;animation:pulse 1.2s infinite}
   @keyframes pulse{50%{opacity:.6}}
   .hint{color:var(--muted);font-size:13px;margin-top:7px;min-height:17px}
@@ -81,6 +83,8 @@
   .sheet textarea{width:100%;font:inherit;color:var(--text);background:var(--card);border:2px solid var(--line);
     border-radius:12px;padding:12px;min-height:90px;resize:vertical;outline:none}
   .sheet .pick{margin:12px 0}
+  .enote{margin-top:8px;color:var(--muted);font-size:14px;line-height:1.4;background:var(--card);border-radius:10px;padding:9px 11px}
+  .enote b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
   .sheet .acts{display:flex;gap:10px}
   .sheet .acts button{flex:1;padding:13px;border-radius:12px;font-weight:700;background:var(--card)}
   .sheet .acts .save{background:#f2f2f4;color:#0d0d10}
@@ -88,8 +92,10 @@
 
   /* Kacheln */
   .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 12px 0}
-  .tile2{border-radius:20px;padding:16px;min-height:150px;text-align:left;color:#0d0d10;
-    background:var(--c);display:flex;flex-direction:column;position:relative;overflow:hidden}
+  .tile2{border-radius:20px;padding:16px;min-height:150px;text-align:left;color:var(--text);
+    border:1.5px solid color-mix(in srgb,var(--c) 55%,transparent);
+    background:color-mix(in srgb,var(--c) 30%,#1c1d22);display:flex;flex-direction:column;position:relative;overflow:hidden}
+  .tile2 .big{color:color-mix(in srgb,var(--c) 70%,#fff)}
   .tile2.wide{grid-column:span 2}
   .tile2 .tn{font-size:20px;font-weight:800}
   .tile2 .big{font-size:46px;font-weight:800;line-height:1;margin-top:auto}
@@ -102,7 +108,7 @@
 
   /* Datum */
   .due{display:inline-block;margin-top:5px;font-size:13px;color:var(--muted);background:#2a2c34;padding:2px 8px;border-radius:999px}
-  .due.today{color:#0d0d10;background:#ffd60a}
+  .due.today{color:#f3e2b0;background:#4a4128}
   .due.late{color:#ffb38a;background:#3a2a22}
   .lbl{color:var(--muted);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:14px 2px 8px}
   .quick{display:flex;gap:6px;flex-wrap:wrap}
@@ -119,7 +125,7 @@
   .tile{aspect-ratio:1/1;border-radius:10px;background:var(--card);border:2px solid transparent;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-weight:700;font-size:16px;padding:0}
   .tile.other{opacity:.35}
-  .tile.today{border-color:#ffd60a}
+  .tile.today{border-color:var(--gelb)}
   .tile.sel{background:#f2f2f4;color:#0d0d10}
   .tile .dots{display:flex;gap:3px;height:7px}
   .tile .dots i{width:7px;height:7px;border-radius:50%;background:var(--c)}
@@ -163,6 +169,7 @@
 <div class="sheetbg" id="sheetbg">
   <div class="sheet">
     <textarea id="etext"></textarea>
+    <div class="enote" id="enote" hidden></div>
     <div class="pick" id="epick"></div>
     <div class="lbl">Datum (freiwillig)</div>
     <div class="quick" id="equick"></div>
@@ -259,7 +266,7 @@ function render(){
         <span class="tn">Privat</span><span class="peek">${peek("privat")}</span><span class="big">${count("privat")}</span></button>
       <button class="tile2" data-view="schule" style="--c:var(--schule)"><span class="ic">🎓</span>
         <span class="tn">Schule</span><span class="peek">${peek("schule")}</span><span class="big">${count("schule")}</span></button>
-      <button class="tile2" data-view="kalender" style="--c:#ffd60a"><span class="ic">📅</span>
+      <button class="tile2" data-view="kalender" style="--c:var(--gelb)"><span class="ic">📅</span>
         <span class="tn">${["So","Mo","Di","Mi","Do","Fr","Sa"][now.getDay()]}, ${now.getDate()}. ${MONTHS[now.getMonth()].slice(0,3)}.</span>
         <span class="peek">${today.length?"fällig heute":"Kalender"}</span><span class="big">${today.length}</span></button>
       <button class="tile2 dark" data-view="alle" style="--c:#2a2c34"><span class="ic">📋</span>
@@ -272,7 +279,7 @@ function render(){
   $("tabs").innerHTML =
     `<button class="tab ${view==="alle"?"on":""}" data-view="alle" style="--c:#f2f2f4">Alle <span class="n">${open.length}</span></button>` +
     PROJECTS.map(p=>`<button class="tab ${view===p.id?"on":""}" data-view="${p.id}" style="--c:${p.color}"><span class="dot"></span>${p.name} <span class="n">${count(p.id)}</span></button>`).join("") +
-    `<button class="tab ${view==="kalender"?"on":""}" data-view="kalender" style="--c:#ffd60a">📅 Kalender</button>`;
+    `<button class="tab ${view==="kalender"?"on":""}" data-view="kalender" style="--c:var(--gelb)">📅 Kalender</button>`;
 
   if(view==="kalender"){
     const day=open.filter(t=>t.due===calSel);
@@ -313,7 +320,7 @@ function taskHtml(t){
   const p = P[t.project] || P.privat;
   return `<div class="task ${t.done?"done":""}" style="--c:${p.color}">
     <button class="chk" data-check="${t.id}" aria-label="Erledigt"></button>
-    <button class="ttext" data-edit="${t.id}">${esc(t.text)}${t.due&&!t.done?`<br><span class="due ${t.due===todayIso()?"today":t.due<todayIso()?"late":""}">📅 ${dueLabel(t.due)}</span>`:""}</button>
+    <button class="ttext" data-edit="${t.id}">${esc(t.text)}${t.note?' <span style="opacity:.5">🗒</span>':""}${t.due&&!t.done?`<br><span class="due ${t.due===todayIso()?"today":t.due<todayIso()?"late":""}">📅 ${dueLabel(t.due)}</span>`:""}</button>
   </div>`;
 }
 
@@ -351,23 +358,51 @@ async function write(fn){
 }
 
 function parseVoice(text){
-  // „Privat Bauchtasche abholen“ → Projekt Privat
-  // „… morgen“ am Ende → Datum morgen
-  let project=addProject, s=text.trim(), due=null;
-  const m = s.match(/^(arbeit|privat|schule)[\s,:.-]+(.+)$/i);
-  if(m){ project=m[1].toLowerCase(); s=m[2].trim(); }
-  const d = s.match(/^(.+?)[\s,]+(heute|morgen|übermorgen)[.!]?$/i);
-  if(d){ s=d[1].trim(); const w=d[2].toLowerCase();
-    due = iso(addDays(new Date(), w==="heute"?0:w==="morgen"?1:2)); }
+  // Versteht frei Gesprochenes: Projekt irgendwo im Satz („betrifft Arbeit“, „…, privat“),
+  // Datum („morgen“, „am Freitag“, „nächste Woche“), Füllwörter weg, kurzer Titel.
+  // Der ganze gesprochene Text bleibt als Notiz erhalten.
+  const orig = text.trim().replace(/\s+/g," ");
+  let s = " "+orig+" ", project=addProject, due=null;
+  const PW = "arbeit|job|büro|geschäft|privat|daheim|zuhause|persönlich|schule|zhaw|uni|studium|hochschule";
+  const toP = w => /^(arbeit|job|büro|geschäft)$/i.test(w) ? "arbeit" : /^(schule|zhaw|uni|studium|hochschule)$/i.test(w) ? "schule" : "privat";
+  const pats = [
+    new RegExp(`[\\s,.]*(?:das\\s+)?(?:betrifft|betreffend|gehört|kommt|tu(?:e)?\\s+(?:das|es)|projekt|kategorie|thema|bereich)\\s+(?:mit\\s+|zu[rm]?\\s+|in(?:s|\\s+die|\\s+den)?\\s+|unter\\s+|bei\\s+|für\\s+)?(?:die\\s+|der\\s+|das\\s+)?(${PW})\\b[\\s,.:;!-]*`,"i"),
+    new RegExp(`^\\s*(${PW})\\b[\\s,.:;!-]+`,"i"),
+    new RegExp(`[\\s,.;-]+(?:zu[rm]?\\s+|für\\s+(?:die\\s+)?|ins?\\s+)?(${PW})[\\s.!?]*$`,"i"),
+  ];
+  let found=false;
+  for(const re of pats){ const m=s.match(re); if(m){ project=toP(m[1]); s=s.replace(re," "); found=true; break; } }
+  // Eindeutige Wörter irgendwo im Satz („Präsentation für die ZHAW“) bestimmen das Projekt, bleiben aber stehen
+  if(!found){ const m=s.match(/\b(zhaw|uni|studium|hochschule|prüfung|büro|daheim|zuhause)\b/i); if(m) project=toP(m[1]==="prüfung"?"schule":m[1]); }
+
+  // Datum
+  const WDN=["sonntag","montag","dienstag","mittwoch","donnerstag","freitag","samstag"];
+  const dm = s.match(/[\s,]*(?:bis\s+|am\s+|für\s+)?(übermorgen|morgen|heute|nächste\s+woche|(?:nächsten\s+)?(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))\b[\s,.]*/i);
+  if(dm){
+    const w=dm[1].toLowerCase().replace(/\s+/g," "), now=new Date();
+    if(w==="heute") due=iso(now); else if(w==="morgen") due=iso(addDays(now,1)); else if(w==="übermorgen") due=iso(addDays(now,2));
+    else if(w==="nächste woche") due=nextMonday();
+    else { const k=WDN.indexOf(w.replace("nächsten ","")); let n=(k-now.getDay()+7)%7||7; due=iso(addDays(now,n)); }
+    s=s.replace(dm[0]," ");
+  }
   if(!due && view==="kalender") due=calSel;
-  return {project, text:s, due};
+
+  // Füllwörter am Satzanfang
+  const FILL=/^\s*(?:[,.:;!?-]+|also|okay|ok|äh+m?|ähm|hm+|so|gut|ja|und|aber|neue\s+aufgabe|eine\s+neue\s+aufgabe|aufgabe|und\s+zwar|zwar|bitte|ich\s+muss|ich\s+sollte|ich\s+möchte|ich\s+will|nicht\s+vergessen|erinnere?\s+mich(?:\s+daran)?|tu(?:e)?\s+das|füge?\s+hinzu|schreib(?:e)?\s+auf|notiere?|dass\s+ich|noch)(?=[\s,.:;!?]|$)/i;
+  const clean = x => { let y=x, p; do{ p=y; y=y.replace(FILL,""); }while(y!==p); return y.trim(); };
+  const sentences = s.split(/(?<=[.?!])\s+/).map(clean).map(x=>x.replace(/[\s,.;:!-]+$/,"").trim()).filter(x=>x.length>2);
+  let title = sentences[0] || clean(s) || orig;
+  if(title.length>70){ const c=title.slice(0,70); title=(c.lastIndexOf(",")>30?c.slice(0,c.lastIndexOf(",")):c.slice(0,c.lastIndexOf(" ")))+" …"; }
+  title = title.charAt(0).toUpperCase()+title.slice(1);
+  const note = sentences.length>1 || title.endsWith("…") || title.length < orig.length-15 ? orig : "";
+  return {project, text:title, due, note};
 }
 
 $("form").addEventListener("submit", async e=>{
   e.preventDefault();
   const raw = $("inp").value; if(!raw.trim()) return;
-  const {project,text,due} = parseVoice(raw);
-  const t = {text: text.charAt(0).toUpperCase()+text.slice(1), project, due, done:false, created:Date.now()};
+  const {project,text,due,note} = parseVoice(raw);
+  const t = {text, project, due, note, done:false, created:Date.now()};
   $("inp").value = "";
   const ok = await write(()=>col.add(t));
   if(!ok) $("inp").value = raw;
@@ -401,6 +436,7 @@ function openEdit(id){
   const t = tasks.find(x=>x.id===id); if(!t) return;
   editing=id; editProject=t.project; editDue=t.due||null;
   editMonth = editDue ? new Date(editDue+"T12:00") : new Date(); editMonth.setDate(1);
+  $("enote").hidden=!t.note; $("enote").innerHTML=t.note?"<b>Gesprochen</b>"+esc(t.note):"";
   $("etext").value=t.text; renderEditPick(); renderEditDate(); $("sheetbg").classList.add("show");
 }
 function renderEditPick(){
@@ -457,7 +493,7 @@ render();
 
   if(navigator.mediaDevices && window.MediaRecorder){
     mic.hidden=false;
-    hint("🎤 antippen und sprechen, z. B. „Privat Bauchtasche abholen morgen“.");
+    hint("🎤 antippen und frei sprechen, z. B. „Bauchtasche abholen, morgen, privat“.");
   } else hint("Tipp: Sag zuerst „Arbeit“, „Privat“ oder „Schule“.");
 
   async function begin(){
@@ -481,7 +517,8 @@ render();
       setState("idle");
       if(!text || text.length<2){ hint("Nichts verstanden. Bitte nochmals deutlich sprechen."); return; }
       const inp=$("inp"); inp.value=((inp.value.trim()+" "+text).trim()).replace(/[.!]+$/,"");
-      hint("Prüfen und mit + speichern.");
+      const pv=parseVoice(inp.value);
+      hint("→ "+P[pv.project].name+": „"+pv.text+"“"+(pv.due?" · "+dueLabel(pv.due):"")+"  — mit + speichern.");
     }catch(e){
       setState("idle");
       hint(String(e && e.message || e).includes("fetch") || !navigator.onLine

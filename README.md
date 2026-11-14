@@ -25,4 +25,5 @@ Eine neue Version entsteht, wenn die Versionsnummer in `src-tauri/tauri.conf.jso
 Eine eigene kleine Handy-App für Aufgaben, sortiert nach **Arbeit**, **Privat** und **Schule** in farbigen Kacheln. Datum nur, wenn man will; Kachel-Kalender; Spracheingabe mit Whisper auf dem Gerät («Privat Bauchtasche abholen morgen»). Alle Aufgaben bleiben auf dem Handy.
 - Installieren mit **Obtainium**: dieses Repo hinzufügen, «Vorabversionen einbeziehen» einschalten, Titel-Filter `Da far`.
 - Neue Version: Versionsnummer in `dafar/src-tauri/tauri.conf.json` erhöhen.
+- Automatische Prüfung vor jedem Bau: `tests/dafar.test.mjs`.
 - Aufbau: `dafar/ui/dafar.html` (Oberfläche), `dafar/src-tauri/` (App-Hülle), `scripts/build-dafar.mjs`.
