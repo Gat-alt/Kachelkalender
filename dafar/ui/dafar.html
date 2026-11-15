@@ -102,6 +102,9 @@
   .tile2 .peek{font-size:14px;font-weight:600;opacity:.85;margin-top:8px;line-height:1.35}
   .tile2 .peek div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tile2 .ic{position:absolute;right:14px;top:12px;font-size:26px;opacity:.9}
+  .calic{display:inline-flex;flex-direction:column;width:34px;border-radius:6px;overflow:hidden;background:#f4f4f6;font-family:inherit;line-height:1;text-align:center;box-shadow:0 1px 2px #0006}
+  .calic b{background:#e0453a;color:#fff;font-size:9px;font-weight:700;padding:2px 0;letter-spacing:.3px}
+  .calic i{font-style:normal;color:#222;font-size:17px;font-weight:700;padding:2px 0 3px}
   .tile2.dark{color:var(--text)}
   .back{display:none;align-items:center;gap:6px;font-weight:700;font-size:17px;padding:6px 0;color:var(--muted)}
   .back.show{display:flex}
@@ -266,7 +269,7 @@ function render(){
         <span class="tn">Privat</span><span class="peek">${peek("privat")}</span><span class="big">${count("privat")}</span></button>
       <button class="tile2" data-view="schule" style="--c:var(--schule)"><span class="ic">🎓</span>
         <span class="tn">Schule</span><span class="peek">${peek("schule")}</span><span class="big">${count("schule")}</span></button>
-      <button class="tile2" data-view="kalender" style="--c:var(--gelb)"><span class="ic">📅</span>
+      <button class="tile2" data-view="kalender" style="--c:var(--gelb)"><span class="ic"><span class="calic"><b>${MONTHS[now.getMonth()].slice(0,3).toUpperCase()}</b><i>${now.getDate()}</i></span></span>
         <span class="tn">${["So","Mo","Di","Mi","Do","Fr","Sa"][now.getDay()]}, ${now.getDate()}. ${MONTHS[now.getMonth()].slice(0,3)}.</span>
         <span class="peek">${today.length?"fällig heute":"Kalender"}</span><span class="big">${today.length}</span></button>
       <button class="tile2 dark" data-view="alle" style="--c:#2a2c34"><span class="ic">📋</span>
