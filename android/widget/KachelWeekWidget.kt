@@ -101,9 +101,9 @@ class KachelWeekWidget : AppWidgetProvider() {
                 val h = sb.length
                 sb.append(WD[i]).append("  ").append(c.get(Calendar.DAY_OF_MONTH).toString())
                 sb.setSpan(StyleSpan(Typeface.BOLD), h, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                sb.setSpan(ForegroundColorSpan(if (isToday) Color.parseColor("#FFFFFF") else Color.parseColor("#BDBDBD")), h, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.setSpan(ForegroundColorSpan(if (isToday) Color.parseColor("#FFD23F") else Color.parseColor("#BDBDBD")), h, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 sb.setSpan(RelativeSizeSpan(1.12f), h, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                if (isToday) { val t = sb.length; sb.append("  heute"); sb.setSpan(RelativeSizeSpan(0.85f), t, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); sb.setSpan(ForegroundColorSpan(Color.parseColor("#FFFFFF")), t, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
+                if (isToday) { val t = sb.length; sb.append("  HEUTE"); sb.setSpan(RelativeSizeSpan(0.85f), t, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); sb.setSpan(ForegroundColorSpan(Color.parseColor("#FFD23F")), t, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
                 val day = byDay[ds]
                 val items = day?.optJSONArray("items")
                 val total = day?.optInt("n", items?.length() ?: 0) ?: 0

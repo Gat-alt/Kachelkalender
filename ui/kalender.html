@@ -63,7 +63,7 @@ html.strong .pk-btns .pk-edit{background:var(--ce);color:#fff}
 /* Layout: Seitenleiste (Kalender, Aufgaben) + Hauptfläche mit Kachel-Woche; auf dem Handy Leiste als Schublade */
 :root{
   --bg:#eef1f5; --surface:#ffffff; --surface-2:#f6f8fb; --line:#dde3ea; --fg:#18202b; --muted:#5e6a7a;
-  --accent:#1f5fd1; --accent-ink:#ffffff; --today:#1f5fd1; --gap-line:#c5cdd8; --holiday:#a2631b;
+  --accent:#1f5fd1; --accent-ink:#ffffff; --today:#1f5fd1; --tdh:#f2b600; --gap-line:#c5cdd8; --holiday:#a2631b;
   --shadow:0 1px 2px rgba(20,30,50,.06),0 4px 16px rgba(20,30,50,.06);
   --font-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
   --font-body:"Instrument Sans","Segoe UI",system-ui,-apple-system,sans-serif;
@@ -73,17 +73,17 @@ html.strong .pk-btns .pk-edit{background:var(--ce);color:#fff}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --tint:22%; --tint-m:42%; --edge:3px;
   --bg:#0f1318; --surface:#171c23; --surface-2:#1d232b; --line:#2a323d; --fg:#e8edf3; --muted:#97a3b3;
-  --accent:#6c9cff; --accent-ink:#0b1220; --today:#6c9cff; --gap-line:#3a4452; --holiday:#e0a35a;
+  --accent:#6c9cff; --accent-ink:#0b1220; --today:#6c9cff; --tdh:#ffd23f; --gap-line:#3a4452; --holiday:#e0a35a;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35); color-scheme:dark }}
 :root[data-theme="dim"]{
   --tint:22%; --tint-m:42%; --edge:3px;
   --bg:#2a303a; --surface:#343b47; --surface-2:#3b4350; --line:#4b5464; --fg:#f2f5f9; --muted:#b5bfcc;
-  --accent:#8fb0ff; --accent-ink:#141a24; --today:#9bb8ff; --gap-line:#5a6475; --holiday:#ebb472;
+  --accent:#8fb0ff; --accent-ink:#141a24; --today:#9bb8ff; --tdh:#ffd23f; --gap-line:#5a6475; --holiday:#ebb472;
   --shadow:0 1px 2px rgba(0,0,0,.25),0 6px 18px rgba(0,0,0,.22); color-scheme:dark }
 :root[data-theme="dark"]{
   --tint:22%; --tint-m:42%; --edge:3px;
   --bg:#0f1318; --surface:#171c23; --surface-2:#1d232b; --line:#2a323d; --fg:#e8edf3; --muted:#97a3b3;
-  --accent:#6c9cff; --accent-ink:#0b1220; --today:#6c9cff; --gap-line:#3a4452; --holiday:#e0a35a;
+  --accent:#6c9cff; --accent-ink:#0b1220; --today:#6c9cff; --tdh:#ffd23f; --gap-line:#3a4452; --holiday:#e0a35a;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35); color-scheme:dark }
 html,body{height:100%}
 body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:var(--fs);line-height:1.4;-webkit-font-smoothing:antialiased}
@@ -914,6 +914,19 @@ html.strong .sheet.act{background:color-mix(in srgb,var(--cp,var(--surface)) 35%
 html.strong .sheet.act .act-head{background:linear-gradient(160deg,var(--cp),var(--cp2));color:var(--cink)}
 html.strong .month .mi i,html.strong .pli .bdot{width:9px;height:9px}
 html.strong .col.tcol{background-color:color-mix(in srgb,#5fd3b0 12%,var(--surface))}
+/* Heute auf einen Blick, in allen Ansichten: gelber Rahmen, gelb getönter Hintergrund, Datum als gelbe Plakette.
+   Gelb kommt sonst nirgends vor (Kalender sind rosa/blau/grün, Feiertage orange gestrichelt). */
+.tile.today{border:2px solid var(--tdh);box-shadow:0 0 0 3px color-mix(in srgb,var(--tdh) 28%,transparent)}
+.tile.today:not(.tile-weekend),.tile-weekend .half.today{background:color-mix(in srgb,var(--tdh) 13%,var(--surface))}
+.tile-weekend .half.today{border-radius:10px;padding:6px;margin:-6px}
+.tile-weekend .half.today + .half,.tile-weekend .half + .half.today{border-left-color:transparent}
+.today .dh .dnum{background:var(--tdh);color:#1a1400;border-radius:9px;padding:3px 7px}
+.tile.today:not(.tile-weekend) .dh .dname::after,.half.today .dh .dname::after{content:"Heute";display:inline-block;margin-top:2px;padding:1px 6px;border-radius:6px;background:var(--tdh);color:#1a1400;letter-spacing:.06em}
+.ghead .tdy,.thead div.tdy{background:color-mix(in srgb,var(--tdh) 20%,var(--surface));box-shadow:inset 0 -3px 0 var(--tdh);border-radius:8px 8px 0 0;color:var(--fg)}
+.ghead .tdy .dlink b,.thead div.tdy > b{display:inline-block;align-self:center;background:var(--tdh);color:#1a1400;border-radius:999px;padding:0 .45em;min-width:1.6em}
+.col.tcol,html.strong .col.tcol{background-color:color-mix(in srgb,var(--tdh) 9%,var(--surface));box-shadow:inset 2px 0 0 var(--tdh),inset -2px 0 0 var(--tdh)}
+.month .c.tdy,.month .c.tdy.we,.month .c.tdy.out{background:color-mix(in srgb,var(--tdh) 16%,var(--surface));box-shadow:inset 0 0 0 2px var(--tdh);opacity:1}
+.month .c.tdy .d{background:var(--tdh);color:#1a1400;font-size:.95em;padding:2px 8px}
 </style>
 
 <div class="app" lang="de">
