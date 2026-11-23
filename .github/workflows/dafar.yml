@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --onnxruntime-node-install-cuda=skip
       - run: npx playwright install --with-deps chromium
       - name: Automatische Prüfung
         run: node scripts/build-dafar.mjs && node tests/dafar.test.mjs
@@ -59,7 +59,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./dafar/src-tauri -> target"
-      - run: npm ci
+      - run: npm ci --onnxruntime-node-install-cuda=skip
         working-directory: .
       - name: Oberfläche bauen (Datenschutz-Prüfung inklusive)
         run: node ../scripts/build-dafar.mjs
