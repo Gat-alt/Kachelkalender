@@ -29,7 +29,7 @@ jobs:
       - run: npm ci --onnxruntime-node-install-cuda=skip
       - run: npx playwright install --with-deps chromium
       - name: Automatische Prüfung
-        run: node scripts/build-dafar.mjs && node tests/dafar.test.mjs
+        run: node scripts/datenschutz-dafar.mjs && node scripts/build-dafar.mjs && node tests/dafar.test.mjs
 
   android:
     needs: pruefen
@@ -77,6 +77,8 @@ jobs:
           grep -q windowSoftInputMode "$M" && sed -i 's#android:windowSoftInputMode="[^"]*"#android:windowSoftInputMode="adjustResize"#' "$M" || sed -i '0,/<activity/s#<activity#<activity android:windowSoftInputMode="adjustResize"#' "$M"
       - name: Spracheingabe von Android einbauen
         run: node ../scripts/dafar-android.mjs
+      - name: Datenschutz-Prüfung (kein Google, keine Tracker)
+        run: node ../scripts/datenschutz-dafar.mjs --android
       - name: Symbol-Hintergrund schwarz
         run: |
           npm run tauri -- icon icon.png
@@ -94,6 +96,8 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in ../android/kachelkalender.jks.enc -out "$RUNNER_TEMP/kachelkalender.jks" -pass env:ANDROID_KEY_PASSWORD
           printf "keyAlias=kachelkalender\npassword=%s\nstoreFile=%s\n" "$ANDROID_KEY_PASSWORD" "$RUNNER_TEMP/kachelkalender.jks" > src-tauri/gen/android/keystore.properties
           node ../scripts/android-signing.mjs
+      - name: Datenschutz-Prüfung vor dem Bauen (nochmals, nach allen Anpassungen)
+        run: node ../scripts/datenschutz-dafar.mjs --android
       - run: npm run tauri -- android build --apk --target aarch64 --target armv7
       - name: Datei benennen
         run: cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "Da-far-${APP_VERSION}.apk"
