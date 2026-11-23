@@ -19,7 +19,7 @@ export async function load(onProgress) {
   if (!loading) {
     const files = {};
     loading = pipeline("automatic-speech-recognition", MODEL, {
-      dtype: { encoder_model: "q8", decoder_model_merged: "q8" }, // zusammen ca. 77 MB
+      dtype: { encoder_model: "fp32", decoder_model_merged: "q8" }, // Zuhören unkomprimiert (versteht viel besser), zusammen ca. 130 MB
       device: "wasm",
       progress_callback: p => {
         if (p.status === "progress" && p.file) files[p.file] = { l: p.loaded || 0, t: p.total || 0 };

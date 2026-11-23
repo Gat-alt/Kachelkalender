@@ -530,7 +530,7 @@ render();
 
 /* ---------- Spracheingabe: Whisper läuft auf dem Gerät, die Aufnahme verlässt es nie ---------- */
 {
-  const mic=$("mic"), WKEY="dafar-whisper";
+  const mic=$("mic"), WKEY="dafar-whisper2";
   let W=null, rec=null, chunks=[], stream=null, stopT=null, state="idle";
   const hint=t=>$("hint").textContent=t;
   const ready=()=>{ try{ return localStorage.getItem(WKEY)==="1"; }catch(e){ return false; } };
@@ -538,7 +538,7 @@ render();
   const setState=s=>{ state=s; mic.classList.toggle("live", s==="rec"); mic.style.opacity = s==="busy" ? ".5" : ""; };
   const prog=(f,t)=>{ if(state==="busy" && t) hint("Spracheingabe wird eingerichtet … "+Math.round(f*100)+" % (einmalig ca. "+Math.round(t/1e6)+" MB)"); };
 
-  // Auf dem Handy: die Spracherkennung von Android (dieselbe wie in anderen Apps, versteht Deutsch viel besser).
+  // Auf dem Handy: FUTO Voice Input (quelloffen, läuft offline auf dem Handy, nie Google).
   // Das Gesprochene wird sofort als Aufgabe gespeichert, mit Projekt und Datum aus dem Satz.
   const NV = window.DafarVoice;
   let nativeOk=false; try{ nativeOk = !!(NV && NV.available()); }catch(e){}
@@ -549,7 +549,7 @@ render();
       setState("idle");
       text=String(text||"").trim().replace(/[.!]+$/,"");
       if(err==="busy"){ hint("Die Spracherkennung ist gerade besetzt. Bitte nochmals tippen."); return; }
-      if(err==="missing"){ hint("Auf diesem Handy ist keine Spracherkennung eingerichtet (z. B. Google-App oder „Speech Services by Google“)."); return; }
+      if(err==="missing"){ hint("FUTO Voice Input ist nicht mehr installiert. Bitte neu installieren oder Da far neu starten."); return; }
       if(!text){ hint("Nichts verstanden. Tippe nochmals auf 🎤."); return; }
       const inp=$("inp"); inp.value=(inp.value.trim()+" "+text).trim();
       $("form").requestSubmit();
@@ -562,7 +562,7 @@ render();
     });
   } else if(navigator.mediaDevices && window.MediaRecorder){
     mic.hidden=false;
-    hint("🎤 antippen und frei sprechen, z. B. „Bauchtasche abholen, morgen, privat“.");
+    hint("🎤 antippen und frei sprechen, z. B. „Bauchtasche abholen, morgen, privat“. Tipp: Mit der App „FUTO Voice Input“ wird die Erkennung viel besser, ebenfalls ohne Internet.");
   } else hint("Tipp: Sag zuerst „Arbeit“, „Privat“ oder „Schule“.");
 
   async function begin(){
@@ -603,7 +603,7 @@ render();
     if(state==="busy") return;
     if(!ready() && !armed){
       armed=true;
-      hint("Beim ersten Mal lädt Da far die Spracherkennung (ca. 80 MB, am besten im WLAN). Deine Stimme bleibt immer auf dem Handy. Tippe nochmals auf 🎤.");
+      hint("Beim ersten Mal lädt Da far die Spracherkennung (ca. 130 MB, am besten im WLAN). Deine Stimme bleibt immer auf dem Handy. Tippe nochmals auf 🎤.");
       return;
     }
     begin();

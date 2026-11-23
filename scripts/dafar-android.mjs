@@ -1,6 +1,7 @@
 // Baut die Spracheingabe von Android in «Da far» ein (läuft im Workflow nach «tauri android init»).
-// Die App ruft über window.DafarVoice die Spracherkennung des Handys auf – dieselbe, die auch andere
-// Apps und die Tastatur nutzen. Sie versteht Deutsch viel besser als das kleine Whisper-Modell.
+// Die App ruft über window.DafarVoice eine Spracherkennung auf, die komplett auf dem Handy läuft
+// (FUTO Voice Input, quelloffen, offline). Google & Co. werden NIE verwendet: nur Apps aus der Liste unten.
+// Ist keine davon installiert, nimmt Da far seine eingebaute Erkennung (Whisper, ebenfalls auf dem Handy).
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,19 +47,28 @@ const hook = `
   }
 
   inner class DafarVoice {
-    @android.webkit.JavascriptInterface
-    fun available(): Boolean {
+    // Nur Erkennungen, die nichts ins Internet schicken
+    private val erlaubt = listOf("org.futo.voiceinput", "dev.soupslurpr.transcribro")
+
+    private fun dafarPick(): String? {
       val i = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-      return i.resolveActivity(packageManager) != null ||
-        android.speech.SpeechRecognizer.isRecognitionAvailable(this@MainActivity)
+      @Suppress("DEPRECATION")
+      val apps = packageManager.queryIntentActivities(i, 0).map { it.activityInfo.packageName }
+      return erlaubt.firstNotNullOfOrNull { e -> apps.firstOrNull { it == e || it.startsWith("$e.") } }
     }
+
+    @android.webkit.JavascriptInterface
+    fun available(): Boolean = dafarPick() != null
 
     @android.webkit.JavascriptInterface
     fun start() {
       runOnUiThread {
         val loc = java.util.Locale.getDefault()
         val lang = if (loc.language == "de") loc.toLanguageTag() else "de-DE"
+        val pkg = dafarPick()
+        if (pkg == null) { dafarSend("", "missing"); return@runOnUiThread }
         val i = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+          setPackage(pkg)
           putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
           putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, lang)
           putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Aufgabe sagen …")
