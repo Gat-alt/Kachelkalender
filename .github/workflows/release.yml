@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --onnxruntime-node-install-cuda=skip
       - run: npx playwright install --with-deps chromium
       - name: Automatische Prüfung
         run: npm test
@@ -61,7 +61,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
-      - run: npm ci
+      - run: npm ci --onnxruntime-node-install-cuda=skip
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -100,7 +100,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
-      - run: npm ci
+      - run: npm ci --onnxruntime-node-install-cuda=skip
       - run: npx tauri android init --ci
       - name: Mikrofon-Recht fürs Handy (Spracheingabe, nur auf Knopfdruck)
         run: |
