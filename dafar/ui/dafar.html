@@ -387,7 +387,8 @@ function parseVoice(text){
 
   // Datum
   const WDN=["sonntag","montag","dienstag","mittwoch","donnerstag","freitag","samstag"];
-  const dm = s.match(/[\s,]*(?:bis\s+(?:zum\s+|am\s+)?|am\s+|für\s+|auf\s+)?(übermorgen|morgen|heute|nächste\s+woche|(?:nächsten\s+|kommenden\s+)?(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))\b[\s,.]*/i);
+  // „am Morgen“ / „jeden Morgen“ ist eine Tageszeit, kein Datum
+  const dm = s.replace(/\b(am|jeden|früh\s+am)\s+morgen\b/gi, m=>m.replace(/morgen/i,"Vormittag")).match(/[\s,]*(?:bis\s+(?:zum\s+|am\s+)?|am\s+|für\s+|auf\s+)?(übermorgen|morgen|heute|nächste\s+woche|(?:nächsten\s+|kommenden\s+)?(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))\b[\s,.]*/i);
   if(dm){
     const w=dm[1].toLowerCase().replace(/\s+/g," "), now=new Date();
     if(w==="heute") due=iso(now); else if(w==="morgen") due=iso(addDays(now,1)); else if(w==="übermorgen") due=iso(addDays(now,2));
@@ -537,7 +538,29 @@ render();
   const setState=s=>{ state=s; mic.classList.toggle("live", s==="rec"); mic.style.opacity = s==="busy" ? ".5" : ""; };
   const prog=(f,t)=>{ if(state==="busy" && t) hint("Spracheingabe wird eingerichtet … "+Math.round(f*100)+" % (einmalig ca. "+Math.round(t/1e6)+" MB)"); };
 
-  if(navigator.mediaDevices && window.MediaRecorder){
+  // Auf dem Handy: die Spracherkennung von Android (dieselbe wie in anderen Apps, versteht Deutsch viel besser).
+  // Das Gesprochene wird sofort als Aufgabe gespeichert, mit Projekt und Datum aus dem Satz.
+  const NV = window.DafarVoice;
+  let nativeOk=false; try{ nativeOk = !!(NV && NV.available()); }catch(e){}
+  if(nativeOk){
+    mic.hidden=false;
+    hint("🎤 antippen und frei sprechen, z. B. „Bauchtasche abholen, morgen, privat“.");
+    window.dafarVoiceResult=(text,err)=>{
+      setState("idle");
+      text=String(text||"").trim().replace(/[.!]+$/,"");
+      if(err==="busy"){ hint("Die Spracherkennung ist gerade besetzt. Bitte nochmals tippen."); return; }
+      if(err==="missing"){ hint("Auf diesem Handy ist keine Spracherkennung eingerichtet (z. B. Google-App oder „Speech Services by Google“)."); return; }
+      if(!text){ hint("Nichts verstanden. Tippe nochmals auf 🎤."); return; }
+      const inp=$("inp"); inp.value=(inp.value.trim()+" "+text).trim();
+      $("form").requestSubmit();
+    };
+    mic.addEventListener("click",()=>{
+      if(state==="busy") return;
+      setState("busy"); hint("Sprich jetzt …");
+      try{ NV.start(); }catch(e){ setState("idle"); hint("Spracheingabe gerade nicht möglich."); }
+      setTimeout(()=>{ if(state==="busy") setState("idle"); },60000);
+    });
+  } else if(navigator.mediaDevices && window.MediaRecorder){
     mic.hidden=false;
     hint("🎤 antippen und frei sprechen, z. B. „Bauchtasche abholen, morgen, privat“.");
   } else hint("Tipp: Sag zuerst „Arbeit“, „Privat“ oder „Schule“.");
@@ -558,9 +581,11 @@ render();
     try{
       const w=await mod(); if(!w.isReady()) hint("Spracheingabe wird eingerichtet … (einmalig, danach offline)");
       await w.load(prog); hint("Wird erkannt …");
-      const text=await w.transcribe(blob);
+      let text=await w.transcribe(blob);
       try{ localStorage.setItem(WKEY,"1"); }catch(e){}
       setState("idle");
+      // Typische Whisper-Erfindungen bei Stille („Vielen Dank.“, „Untertitel im Auftrag des ZDF …“) verwerfen
+      if(/^(vielen dank|danke|tschüss|bis zum nächsten mal)[.!\s]*$|untertitel|amara\.org|copyright/i.test(text||"")) text="";
       if(!text || text.length<2){ hint("Nichts verstanden. Bitte nochmals deutlich sprechen."); return; }
       const inp=$("inp"); inp.value=((inp.value.trim()+" "+text).trim()).replace(/[.!]+$/,"");
       const pv=parseVoice(inp.value);
@@ -573,7 +598,7 @@ render();
     }
   }
   let armed=false;
-  mic.addEventListener("click",()=>{
+  if(!nativeOk) mic.addEventListener("click",()=>{
     if(state==="rec"){ rec && rec.state==="recording" && rec.stop(); return; }
     if(state==="busy") return;
     if(!ready() && !armed){

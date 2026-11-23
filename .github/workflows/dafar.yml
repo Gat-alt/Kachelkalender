@@ -75,6 +75,8 @@ jobs:
         run: |
           M=src-tauri/gen/android/app/src/main/AndroidManifest.xml
           grep -q windowSoftInputMode "$M" && sed -i 's#android:windowSoftInputMode="[^"]*"#android:windowSoftInputMode="adjustResize"#' "$M" || sed -i '0,/<activity/s#<activity#<activity android:windowSoftInputMode="adjustResize"#' "$M"
+      - name: Spracheingabe von Android einbauen
+        run: node ../scripts/dafar-android.mjs
       - name: Symbol-Hintergrund schwarz
         run: |
           npm run tauri -- icon icon.png

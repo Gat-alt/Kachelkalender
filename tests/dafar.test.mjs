@@ -69,6 +69,28 @@ check("Bearbeiten: Datum entfernt, Projekt gewechselt", t.project === "schule" &
 await pg.click("#back"); await pg.click('.tile2[data-view=kalender]'); await pg.waitForTimeout(50);
 check("Kachel-Kalender zeigt den Monat", (await pg.locator(".calview .tile").count()) >= 28);
 
+await pg.click("#back"); await pg.waitForTimeout(50);
+await add("Am Morgen Zahnarzt anrufen, privat");
+t = await last();
+check("„am Morgen“ ist kein Datum", t.project === "privat" && !t.due, JSON.stringify(t));
+
+// Handy: Android-Spracherkennung → Aufgabe wird sofort gespeichert, mit Projekt und Datum
+{
+  const p2 = await ctx.newPage(); p2.on("pageerror", e => errs.push(String(e)));
+  await p2.addInitScript(() => {
+    window.DafarVoice = { available: () => true, start: () => setTimeout(() => window.dafarVoiceResult("Steuererklärung ausfüllen bis Freitag für die Arbeit", ""), 30) };
+  });
+  await p2.goto("file://" + path.join(root, "dafar/dist/index.html")); await p2.waitForTimeout(200);
+  const n0 = (await p2.evaluate(() => JSON.parse(localStorage.getItem("dafar-tasks") || "[]"))).length;
+  check("Mikrofon sichtbar mit Android-Erkennung", await p2.locator("#mic").isVisible());
+  await p2.click("#mic"); await p2.waitForTimeout(200);
+  const a2 = await p2.evaluate(() => JSON.parse(localStorage.getItem("dafar-tasks") || "[]"));
+  const v = a2.slice(-1)[0];
+  check("Gesprochenes wird sofort gespeichert", a2.length === n0 + 1 && v.project === "arbeit" && v.text === "Steuererklärung ausfüllen" && !!v.due, JSON.stringify(v));
+  check("Hinweis bestätigt das Speichern", (await p2.locator("#hint").textContent()).startsWith("Gespeichert in „Arbeit“"));
+  await p2.close();
+}
+
 check("Keine Fehler in der App", errs.length === 0, errs.join(" | "));
 await b.close();
 console.log(`\n${passed} bestanden, ${failed} fehlgeschlagen`);
