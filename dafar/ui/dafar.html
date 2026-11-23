@@ -227,6 +227,55 @@ function dueLabel(s){
 }
 function nextMonday(){ const d=new Date(); const k=(8-d.getDay())%7||7; return iso(addDays(d,k)); }
 
+// Datum aus gesprochenem Text. Gibt {due, match} zurück (match = Textstück, das entfernt wird) oder null.
+const NUMW={ein:1,eins:1,einen:1,einem:1,einer:1,zwei:2,drei:3,vier:4,fünf:5,sechs:6,sieben:7,acht:8,neun:9,zehn:10,elf:11,zwölf:12,vierzehn:14,zwanzig:20,dreissig:30,"dreißig":30};
+const MONI={januar:0,jänner:0,jan:0,februar:1,feb:1,märz:2,maerz:2,april:3,apr:3,mai:4,juni:5,jun:5,juli:6,jul:6,august:7,aug:7,september:8,sept:8,sep:8,oktober:9,okt:9,november:10,nov:10,dezember:11,dez:11};
+function findDate(s){
+  const now=new Date(), PRE="[\\s,]*(?:bis\\s+(?:zum\\s+|am\\s+|in\\s+)?|am\\s+|für\\s+|auf\\s+|spätestens\\s+(?:am\\s+)?|ab\\s+)?";
+  const num=w=>/^\d+$/.test(w)?Number(w):NUMW[w.toLowerCase()];
+  const tryRe=(re,fn)=>{ const m=s.match(new RegExp(PRE+re+"[\\s,.]*","i")); if(!m) return null; const d=fn(m); return d?{due:iso(d),match:m[0]}:null; };
+  const futureDate=(day,mon)=>{ let d=new Date(now.getFullYear(),mon,day,12); if(d<addDays(now,-1)) d=new Date(now.getFullYear()+1,mon,day,12); return d.getMonth()===mon?d:null; };
+  return (
+    // „in 3 Tagen“, „in zwei Wochen“, „in einer Woche“
+    tryRe("in\\s+(\\d+|"+Object.keys(NUMW).join("|")+")\\s+(tag(?:en)?|woche(?:n)?|monat(?:en)?)\\b", m=>{ const n=num(m[1]); if(!n) return null;
+      const u=m[2].toLowerCase(); if(u.startsWith("tag")) return addDays(now,n); if(u.startsWith("woche")) return addDays(now,7*n);
+      const d=new Date(now); d.setMonth(d.getMonth()+n); return d; }) ||
+    // „am 5. Dezember“, „5. Dez.“, „am fünfzehnten“ wird nicht unterstützt (Erkennung schreibt meist Ziffern)
+    tryRe("(\\d{1,2})\\.?\\s*("+Object.keys(MONI).join("|")+")\\b\\.?", m=>futureDate(Number(m[1]),MONI[m[2].toLowerCase()])) ||
+    // „5.12.“ oder „5.12.2026“
+    tryRe("(\\d{1,2})\\.(\\d{1,2})(?:\\.(\\d{4}|\\d{2}(?!\\d))?|(?=[\\s,]|$))(?!\\s*(?:liter|l\\b|kg|kilo|gramm|g\\b|prozent|%|franken|chf|fr\\b|stunden|std|uhr|meter|m\\b|km))", m=>{ const mon=Number(m[2])-1; if(mon<0||mon>11||Number(m[1])<1||Number(m[1])>31) return null;
+      if(m[3]){ const y=Number(m[3].length===2?"20"+m[3]:m[3]); return new Date(y,mon,Number(m[1]),12); } return futureDate(Number(m[1]),mon); }) ||
+    // „Ende Woche“, „Ende der Woche“ → Freitag
+    tryRe("ende\\s+(?:der\\s+|dieser\\s+)?woche\\b", ()=>addDays(now,(5-now.getDay()+7)%7)) ||
+    // „Ende Monat“
+    tryRe("ende\\s+(?:des\\s+|dieses\\s+)?monats?\\b", ()=>new Date(now.getFullYear(),now.getMonth()+1,0,12)) ||
+    // „am Wochenende“, „übers Wochenende“
+    tryRe("(?:übers\\s+|über\\s+das\\s+)?wochenende\\b", ()=>addDays(now,(6-now.getDay()+7)%7||(now.getDay()===6?0:7))) ||
+    // „übernächste Woche“, „nächsten Monat“
+    tryRe("übernächste\\s+woche\\b", ()=>addDays(new Date(nextMonday()+"T12:00"),7)) ||
+    tryRe("(?:nächsten|kommenden)\\s+monat\\b", ()=>new Date(now.getFullYear(),now.getMonth()+1,1,12)) ||
+    // heute, morgen, übermorgen, nächste Woche, Wochentage
+    tryRe("(übermorgen|morgen|heute(?:\\s+abend|\\s+nachmittag)?|nächste\\s+woche|(?:nächsten\\s+|kommenden\\s+|diesen\\s+)?(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))\\b", m=>{
+      const w=m[1].toLowerCase().replace(/\s+/g," ");
+      if(w.startsWith("heute")) return now; if(w==="morgen") return addDays(now,1); if(w==="übermorgen") return addDays(now,2);
+      if(w==="nächste woche") return new Date(nextMonday()+"T12:00");
+      const WDN=["sonntag","montag","dienstag","mittwoch","donnerstag","freitag","samstag"];
+      const k=WDN.indexOf(w.replace(/^(nächsten|kommenden|diesen) /,"")); return addDays(now,(k-now.getDay()+7)%7||7); })
+  );
+}
+
+// Mehrere Aufgaben in einem Atemzug: „Milch kaufen und dann noch Chef anrufen, ausserdem …“
+function splitVoice(text){
+  const MARK=/\s*[,.;]?\s*\b(?:und\s+dann\s+noch|und\s+dann|dann\s+noch|und\s+ausserdem|und\s+außerdem|ausserdem|außerdem|zweitens|drittens|viertens|fünftens|als\s+nächstes|noch\s+eine\s+(?:weitere\s+)?aufgabe|eine\s+weitere\s+aufgabe|weitere\s+aufgabe|nächste\s+aufgabe|und\s+auch\s+noch)\b[\s,:]*/i;
+  const raw=text.split(new RegExp(MARK.source,"gi")).map(x=>x.trim()).filter(Boolean);
+  const out=[];
+  for(const p of raw){
+    const w=p.replace(/^(erstens|zuerst|als\s+erstes)\s+/i,"").split(/\s+/).filter(Boolean).length;
+    if(out.length && w<2) out[out.length-1]+=" "+p; else out.push(p);
+  }
+  return out.length?out:[text];
+}
+
 // Kachel-Kalender: gibt HTML für einen Monat zurück
 function calHtml(month, selected, prefix){
   const y=month.getFullYear(), m=month.getMonth();
@@ -383,24 +432,16 @@ function parseVoice(text){
   ];
   let found=false;
   for(const re of pats){ const m=s.match(re); if(m){ project=toP(m[1]); s=s.replace(re," , "); found=true; break; } }
-  if(!found){ const m=s.match(/\b(zhaw|uni|studium|hochschule|prüfung|büro|daheim|zuhause)\b/i); if(m) project=toP(m[1].toLowerCase()==="prüfung"?"schule":m[1]); }
+  if(!found){ const m=s.match(/\b(zhaw|uni|studium|hochschule|prüfung|büro|daheim|zuhause)\b/i); if(m){ project=toP(m[1].toLowerCase()==="prüfung"?"schule":m[1]); found=true; } }
 
-  // Datum
-  const WDN=["sonntag","montag","dienstag","mittwoch","donnerstag","freitag","samstag"];
-  // „am Morgen“ / „jeden Morgen“ ist eine Tageszeit, kein Datum
-  const dm = s.replace(/\b(am|jeden|früh\s+am)\s+morgen\b/gi, m=>m.replace(/morgen/i,"Vormittag")).match(/[\s,]*(?:bis\s+(?:zum\s+|am\s+)?|am\s+|für\s+|auf\s+)?(übermorgen|morgen|heute|nächste\s+woche|(?:nächsten\s+|kommenden\s+)?(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))\b[\s,.]*/i);
-  if(dm){
-    const w=dm[1].toLowerCase().replace(/\s+/g," "), now=new Date();
-    if(w==="heute") due=iso(now); else if(w==="morgen") due=iso(addDays(now,1)); else if(w==="übermorgen") due=iso(addDays(now,2));
-    else if(w==="nächste woche") due=nextMonday();
-    else { const k=WDN.indexOf(w.replace(/^(nächsten|kommenden) /,"")); let n=(k-now.getDay()+7)%7||7; due=iso(addDays(now,n)); }
-    s=s.replace(dm[0]," , ");
-  }
+  // Datum: heute, morgen, Wochentage, „in 3 Tagen“, „Ende Woche“, „am 5. Dezember“, „5.12.“ …
+  const fd = findDate(s.replace(/\b(am|jeden|früh\s+am)\s+morgen\b/gi, m=>m.replace(/morgen/i,"Vormittag")));
+  if(fd){ due=fd.due; s=s.replace(fd.match," , "); }
   if(!due && view==="kalender") due=calSel;
 
   // Füll- und Ansagewörter am Anfang eines Satzteils (wiederholt entfernt)
   const FILL=new RegExp("^\\s*(?:[,.:;!?\\-–]+|also|okay|ok|äh+m?|ähm|hm+|so|gut|ja|nein|nee|genau|und|aber|dann|jetzt|hier|mal|noch|eben|halt|"+
-    "(?:eine?\\s+)?(?:neue\\s+)?aufgabe(?:\\s+wäre)?|neue|und\\s+zwar|zwar|bitte|"+
+    "(?:eine?\\s+)?(?:neue\\s+)?aufgabe(?:\\s+wäre)?|neue|und\\s+zwar|zwar|bitte|erstens|zuerst|als\\s+erstes|"+
     "das\\s+wäre|das\\s+ist|es\\s+wäre|es\\s+ist|es\\s+geht\\s+um|geht\\s+um|"+
     "ich\\s+(?:muss|müsste|sollte|möchte|will|würde|hätte\\s+gern(?:e)?)|ich\\s+mache?|mache?\\s+ich|mach(?:e)?|"+
     "nicht\\s+vergessen|erinnere?\\s+mich(?:\\s+daran)?|tu(?:e)?\\s+das|füge?\\s+hinzu|schreib(?:e)?\\s+auf|notiere?|dass\\s+ich|"+
@@ -426,18 +467,24 @@ function parseVoice(text){
   if(title.length>60){ const c=title.slice(0,60); title=c.slice(0,Math.max(c.lastIndexOf(" "),30)).replace(/[\s,]+$/,"")+" …"; }
   title = title.charAt(0).toUpperCase()+title.slice(1);
   const note = title.toLowerCase().replace(/\W/g,"") !== orig.toLowerCase().replace(/\W/g,"") && orig.length > title.length+8 ? orig : "";
-  return {project, text:title, due, note};
+  return {project, text:title, due, note, explicit:found};
 }
 
 $("form").addEventListener("submit", async e=>{
   e.preventDefault();
   const raw = $("inp").value; if(!raw.trim()) return;
-  const {project,text,due,note} = parseVoice(raw);
-  const t = {text, project, due, note, done:false, created:Date.now()};
-  $("inp").value = ""; $("hint").textContent = "Gespeichert in „"+P[project].name+"“: "+text;
-  const ok = await write(()=>col.add(t));
+  const whole = parseVoice(raw), parts = splitVoice(raw);
+  const list = parts.length>1 ? parts.map(p=>{ const pv=parseVoice(p); if(!pv.explicit && whole.explicit) pv.project=whole.project; if(!pv.note) pv.note=""; return pv; }) : [whole];
+  $("inp").value = "";
+  let ok=true;
+  for(const {project,text,due,note} of list){
+    const t = {text, project, due, note: list.length>1 ? (note||raw) : note, done:false, created:Date.now()};
+    ok = await write(()=>col.add(t)) && ok;
+  }
+  const lbl = x => "„"+P[x.project].name+"“: "+x.text+(x.due?" · "+dueLabel(x.due):"");
+  $("hint").textContent = list.length>1 ? list.length+" Aufgaben gespeichert – "+list.map(x=>x.text+(x.due?" ("+dueLabel(x.due)+")":"")).join(", ") : "Gespeichert in "+lbl(list[0]);
   if(!ok) $("inp").value = raw;
-  else if(P[view] && view!==project){ view="alle"; store.set("view",view); render(); }
+  else if(P[view] && list.some(x=>x.project!==view)){ view="alle"; store.set("view",view); render(); }
 });
 
 let lastDone=null, toastTimer=null;
@@ -544,7 +591,7 @@ render();
   let nativeOk=false; try{ nativeOk = !!(NV && NV.available()); }catch(e){}
   if(nativeOk){
     mic.hidden=false;
-    hint("🎤 antippen und frei sprechen, z. B. „Bauchtasche abholen, morgen, privat“.");
+    hint("🎤 antippen und frei sprechen, z. B. „Bauchtasche abholen, morgen, privat“. Mehrere Aufgaben mit „und dann“ trennen.");
     window.dafarVoiceResult=(text,err)=>{
       setState("idle");
       text=String(text||"").trim().replace(/[.!]+$/,"");
@@ -562,7 +609,7 @@ render();
     });
   } else if(navigator.mediaDevices && window.MediaRecorder){
     mic.hidden=false;
-    hint("🎤 antippen und frei sprechen, z. B. „Bauchtasche abholen, morgen, privat“. Tipp: Mit der App „FUTO Voice Input“ wird die Erkennung viel besser, ebenfalls ohne Internet.");
+    hint("🎤 antippen und frei sprechen, z. B. „Bauchtasche abholen, morgen, privat“. Mehrere Aufgaben mit „und dann“ trennen. Tipp: Mit der App „FUTO Voice Input“ wird die Erkennung viel besser, ebenfalls ohne Internet.");
   } else hint("Tipp: Sag zuerst „Arbeit“, „Privat“ oder „Schule“.");
 
   async function begin(){
@@ -571,8 +618,23 @@ render();
     chunks=[]; rec=new MediaRecorder(stream);
     rec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
     rec.onstop=finish; rec.start(); setState("rec");
-    hint("Ich höre zu … nochmals tippen zum Beenden.");
-    stopT=setTimeout(()=>{ if(rec && rec.state==="recording") rec.stop(); },20000);
+    hint("Ich höre zu … Sobald du still bist, wird gespeichert.");
+    stopT=setTimeout(()=>{ if(rec && rec.state==="recording") rec.stop(); },45000);
+    // Hört selbst auf, wenn du 1,5 Sekunden nichts mehr sagst (wie bei anderen To-do-Apps)
+    try{
+      const ac=new (window.AudioContext||window.webkitAudioContext)(), an=ac.createAnalyser(); an.fftSize=1024;
+      ac.createMediaStreamSource(stream).connect(an);
+      const buf=new Float32Array(an.fftSize); let spoke=false, quietSince=Date.now(), t0=Date.now(), floor=0.01;
+      const tick=()=>{
+        if(!rec || rec.state!=="recording"){ ac.close(); return; }
+        an.getFloatTimeDomainData(buf); let e=0; for(const v of buf) e+=v*v; const rms=Math.sqrt(e/buf.length);
+        if(Date.now()-t0<400) floor=Math.max(floor,rms*1.5);           // Grundrauschen messen
+        if(rms>Math.max(0.02,floor*2)){ spoke=true; quietSince=Date.now(); }
+        if((spoke && Date.now()-quietSince>1500) || (!spoke && Date.now()-t0>8000)){ rec.stop(); ac.close(); return; }
+        setTimeout(tick,100);
+      };
+      setTimeout(tick,100);
+    }catch(e){}
     mod().then(w=>w.load(prog)).catch(()=>{}); // Modell schon während des Sprechens vorbereiten
   }
   async function finish(){
@@ -588,8 +650,7 @@ render();
       if(/^(vielen dank|danke|tschüss|bis zum nächsten mal)[.!\s]*$|untertitel|amara\.org|copyright/i.test(text||"")) text="";
       if(!text || text.length<2){ hint("Nichts verstanden. Bitte nochmals deutlich sprechen."); return; }
       const inp=$("inp"); inp.value=((inp.value.trim()+" "+text).trim()).replace(/[.!]+$/,"");
-      const pv=parseVoice(inp.value);
-      hint("→ "+P[pv.project].name+": „"+pv.text+"“"+(pv.due?" · "+dueLabel(pv.due):"")+"  — mit + speichern.");
+      $("form").requestSubmit();
     }catch(e){
       setState("idle");
       hint(String(e && e.message || e).includes("fetch") || !navigator.onLine

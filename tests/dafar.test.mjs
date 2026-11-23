@@ -74,6 +74,26 @@ await add("Am Morgen Zahnarzt anrufen, privat");
 t = await last();
 check("„am Morgen“ ist kein Datum", t.project === "privat" && !t.due, JSON.stringify(t));
 
+// Mehr Datumsangaben (heute = Samstag, 14.11.2026)
+const dueOf = async x => { await add(x); return await last(); };
+t = await dueOf("Rechnung bezahlen in 3 Tagen privat"); check("„in 3 Tagen“", t.due === "2026-11-17" && t.text === "Rechnung bezahlen", JSON.stringify(t));
+t = await dueOf("Bericht abgeben bis Ende Woche für die Arbeit"); check("„Ende Woche“ → Freitag", t.due === "2026-11-20" && t.project === "arbeit" && t.text === "Bericht abgeben", JSON.stringify(t));
+t = await dueOf("Geschenk für Mama kaufen am 5. Dezember"); check("„am 5. Dezember“", t.due === "2026-12-05" && t.text === "Geschenk für Mama kaufen", JSON.stringify(t));
+t = await dueOf("Steuern einreichen bis 31.3. privat"); check("„31.3.“ → nächstes Jahr", t.due === "2027-03-31", JSON.stringify(t));
+t = await dueOf("1.5 Liter Milch kaufen privat"); check("„1.5 Liter“ ist kein Datum", !t.due, JSON.stringify(t));
+t = await dueOf("Zimmer aufräumen in zwei Wochen privat"); check("„in zwei Wochen“", t.due === "2026-11-28", JSON.stringify(t));
+
+// Mehrere Aufgaben in einem Satz
+{ const n0 = (await all()).length;
+  await add("Für die Arbeit: Protokoll an Peter schicken und dann noch Offerte für Nadia anfragen bis Montag");
+  const a = await all(), neu = a.slice(n0);
+  check("Zwei Aufgaben aus einem Satz", neu.length === 2 && neu[0].text === "Protokoll an Peter schicken" && neu[1].text === "Offerte für Nadia anfragen", JSON.stringify(neu));
+  check("Projekt gilt für beide, Datum nur für die zweite", neu.every(x => x.project === "arbeit") && !neu[0].due && neu[1].due === "2026-11-16", JSON.stringify(neu));
+  check("Hinweis nennt beide", (await pg.locator("#hint").textContent()).startsWith("2 Aufgaben gespeichert"));
+  await add("Milch und noch Brot kaufen privat");
+  check("„und noch“ mitten im Satz trennt nicht", (await last()).text.includes("Milch") && (await all()).length === n0 + 3, (await last()).text);
+}
+
 // Handy: Android-Spracherkennung → Aufgabe wird sofort gespeichert, mit Projekt und Datum
 {
   const p2 = await ctx.newPage(); p2.on("pageerror", e => errs.push(String(e)));
