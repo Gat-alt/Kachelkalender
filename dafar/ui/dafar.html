@@ -75,6 +75,14 @@
   .mic.live{background:#ff3b30;border-color:#ff3b30;animation:pulse 1.2s infinite}
   @keyframes pulse{50%{opacity:.6}}
   .hint{color:var(--muted);font-size:13px;margin-top:7px;min-height:17px}
+  .korrlink{color:var(--muted);font-size:13px;text-decoration:underline;padding:4px 0 0}
+  .klist{max-height:40vh;overflow-y:auto;margin:10px 0}
+  .krow{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);font-size:15px}
+  .krow .x{margin-left:auto;color:#e07a7a;font-weight:700;padding:4px 8px}
+  .kadd{display:flex;gap:8px;align-items:center;margin:10px 0 14px}
+  .kadd input{flex:1;min-width:0;font:inherit;color:var(--text);background:var(--card);border:2px solid var(--line);border-radius:10px;padding:9px 10px}
+  .ktitle{font-weight:700;font-size:18px}
+  .kinfo{color:var(--muted);font-size:14px;line-height:1.4;margin-top:4px}
 
   /* Bearbeiten-Fenster */
   .sheetbg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-end;z-index:20}
@@ -167,6 +175,24 @@
     </button>
   </form>
   <div class="hint" id="hint"></div>
+  <button type="button" class="korrlink" id="korrBtn">Falsch verstandene Wörter</button>
+</div>
+
+<div class="sheetbg" id="ksheetbg">
+  <div class="sheet">
+    <div class="ktitle">Falsch verstandene Wörter</div>
+    <div class="kinfo">Da far ersetzt diese Wörter beim Sprechen automatisch. Wenn du eine gesprochene Aufgabe korrigierst, merkt sich Da far das Wort von selbst.</div>
+    <div class="klist" id="klist"></div>
+    <div class="kadd">
+      <input id="kfalsch" placeholder="falsch, z. B. Tockets" autocomplete="off">
+      <span>→</span>
+      <input id="krichtig" placeholder="richtig" autocomplete="off">
+    </div>
+    <div class="acts">
+      <button id="kclose">Schliessen</button>
+      <button class="save" id="kadd">Hinzufügen</button>
+    </div>
+  </div>
 </div>
 
 <div class="sheetbg" id="sheetbg">
@@ -409,6 +435,40 @@ async function write(fn){
   }
 }
 
+/* ---------- Korrekturliste: falsch verstandene Wörter (bleibt auf dem Handy) ---------- */
+const KKEY="dafar-korrektur";
+let korr = store.get(KKEY, {});
+const saveKorr = ()=>store.set(KKEY, korr);
+const reEsc = x => x.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+function korrigiere(text){
+  let s=String(text||"");
+  // Längere Einträge zuerst, damit „Tockets kaufen“ vor „Tockets“ greift
+  for(const f of Object.keys(korr).sort((a,b)=>b.length-a.length)){
+    const re=new RegExp("(^|[^\\p{L}\\p{N}])"+reEsc(f)+"(?=$|[^\\p{L}\\p{N}])","giu");
+    s=s.replace(re,(m,pre)=>pre+korr[f]);
+  }
+  return s;
+}
+function lev(a,b){
+  const d=Array.from({length:a.length+1},(_,i)=>[i]);
+  for(let j=1;j<=b.length;j++) d[0][j]=j;
+  for(let i=1;i<=a.length;i++) for(let j=1;j<=b.length;j++)
+    d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return d[a.length][b.length];
+}
+// Aus einer Korrektur lernen: nur wenn einzelne Wörter ähnlich ausgebessert wurden (Tippfehler der Erkennung),
+// nicht wenn der Inhalt umgeschrieben wurde.
+function lerne(alt, neu){
+  const w = x => x.trim().split(/\s+/).map(y=>y.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu,""));
+  const A=w(alt), B=w(neu); if(A.length!==B.length || !A.length) return [];
+  const diff=[]; for(let i=0;i<A.length;i++) if(A[i].toLowerCase()!==B[i].toLowerCase()) diff.push([A[i],B[i]]);
+  if(!diff.length || diff.length>2) return [];
+  const ok = diff.every(([a,b])=>a.length>=3 && b.length>=3 && /\p{L}/u.test(a) && lev(a.toLowerCase(),b.toLowerCase())<=Math.max(2,Math.ceil(Math.min(a.length,b.length)/2)));
+  if(!ok) return [];
+  for(const [a,b] of diff) korr[a.toLowerCase()]=b;
+  saveKorr(); return diff;
+}
+
 function parseVoice(text){
   // Versteht frei Gesprochenes wie Todoist-Ramble, aber mit festen Regeln direkt auf dem Handy:
   // Projekt irgendwo im Satz, Datum, Füll- und Ansagewörter weg („neue Aufgabe für Arbeit, das wäre …“),
@@ -470,15 +530,18 @@ function parseVoice(text){
   return {project, text:title, due, note, explicit:found};
 }
 
+let fromVoice = false;
 $("form").addEventListener("submit", async e=>{
   e.preventDefault();
   const raw = $("inp").value; if(!raw.trim()) return;
   const whole = parseVoice(raw), parts = splitVoice(raw);
   const list = parts.length>1 ? parts.map(p=>{ const pv=parseVoice(p); if(!pv.explicit && whole.explicit) pv.project=whole.project; if(!pv.note) pv.note=""; return pv; }) : [whole];
   $("inp").value = "";
+  const voice = fromVoice; fromVoice = false;
   let ok=true;
   for(const {project,text,due,note} of list){
     const t = {text, project, due, note: list.length>1 ? (note||raw) : note, done:false, created:Date.now()};
+    if(voice) t.voice = true;
     ok = await write(()=>col.add(t)) && ok;
   }
   const lbl = x => "„"+P[x.project].name+"“: "+x.text+(x.due?" · "+dueLabel(x.due):"");
@@ -494,8 +557,8 @@ async function toggleDone(id){
   const ok = await write(()=>col.doc(id).update({done, doneAt: done?Date.now():null}));
   if(ok && done){ lastDone=id; showToast("Erledigt ✓"); }
 }
-function showToast(msg){
-  $("toastMsg").textContent=msg; $("toast").classList.add("show");
+function showToast(msg, undo=true){
+  $("toastMsg").textContent=msg; $("undo").hidden=!undo; $("toast").classList.add("show");
   clearTimeout(toastTimer); toastTimer=setTimeout(()=>$("toast").classList.remove("show"),4000);
 }
 $("undo").onclick = async ()=>{
@@ -539,7 +602,10 @@ $("ecancel").onclick=closeEdit;
 $("sheetbg").addEventListener("click",e=>{ if(e.target.id==="sheetbg") closeEdit(); });
 $("esave").onclick=async()=>{
   const id=editing, text=$("etext").value.trim(); closeEdit();
+  const t = tasks.find(x=>x.id===id);
+  const gelernt = t && t.voice && text ? lerne(t.text, text) : [];
   if(id && text) await write(()=>col.doc(id).update({text, project:editProject, due:editDue}));
+  if(gelernt.length) showToast("Gemerkt: "+gelernt.map(([a,b])=>a+" → "+b).join(", "), false);
 };
 $("edel").onclick=async()=>{ const id=editing; closeEdit(); if(id) await write(()=>col.doc(id).delete()); };
 
@@ -598,8 +664,9 @@ render();
       if(err==="busy"){ hint("Die Spracherkennung ist gerade besetzt. Bitte nochmals tippen."); return; }
       if(err==="missing"){ hint("FUTO Voice Input ist nicht mehr installiert. Bitte neu installieren oder Da far neu starten."); return; }
       if(!text){ hint("Nichts verstanden. Tippe nochmals auf 🎤."); return; }
+      text=korrigiere(text);
       const inp=$("inp"); inp.value=(inp.value.trim()+" "+text).trim();
-      $("form").requestSubmit();
+      fromVoice=true; $("form").requestSubmit();
     };
     mic.addEventListener("click",()=>{
       if(state==="busy") return;
@@ -649,8 +716,9 @@ render();
       // Typische Whisper-Erfindungen bei Stille („Vielen Dank.“, „Untertitel im Auftrag des ZDF …“) verwerfen
       if(/^(vielen dank|danke|tschüss|bis zum nächsten mal)[.!\s]*$|untertitel|amara\.org|copyright/i.test(text||"")) text="";
       if(!text || text.length<2){ hint("Nichts verstanden. Bitte nochmals deutlich sprechen."); return; }
+      text=korrigiere(text);
       const inp=$("inp"); inp.value=((inp.value.trim()+" "+text).trim()).replace(/[.!]+$/,"");
-      $("form").requestSubmit();
+      fromVoice=true; $("form").requestSubmit();
     }catch(e){
       setState("idle");
       hint(String(e && e.message || e).includes("fetch") || !navigator.onLine
@@ -670,6 +738,22 @@ render();
     begin();
   });
 }
+
+/* ---------- Liste der falsch verstandenen Wörter ---------- */
+function renderKorr(){
+  const e=Object.entries(korr);
+  $("klist").innerHTML = e.length ? e.map(([f,r])=>`<div class="krow"><span>${esc(f)}</span><span>→</span><b>${esc(r)}</b><button class="x" data-kdel="${esc(f)}" aria-label="Entfernen">✕</button></div>`).join("")
+    : `<div class="kinfo">Noch keine Wörter.</div>`;
+}
+$("korrBtn").onclick=()=>{ renderKorr(); $("ksheetbg").classList.add("show"); };
+$("kclose").onclick=()=>$("ksheetbg").classList.remove("show");
+$("ksheetbg").addEventListener("click",e=>{ if(e.target.id==="ksheetbg") $("ksheetbg").classList.remove("show"); });
+$("klist").addEventListener("click",e=>{ const b=e.target.closest("[data-kdel]"); if(b){ delete korr[b.dataset.kdel]; saveKorr(); renderKorr(); } });
+$("kadd").onclick=()=>{
+  const f=$("kfalsch").value.trim(), r=$("krichtig").value.trim();
+  if(!f || !r || f.toLowerCase()===r.toLowerCase()) return;
+  korr[f.toLowerCase()]=r; saveKorr(); $("kfalsch").value=""; $("krichtig").value=""; renderKorr();
+};
 </script>
 </body>
 </html>

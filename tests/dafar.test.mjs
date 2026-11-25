@@ -111,6 +111,47 @@ t = await dueOf("Zimmer aufräumen in zwei Wochen privat"); check("„in zwei Wo
   await p2.close();
 }
 
+// Korrekturliste: falsch verstandene Wörter werden gelernt und beim nächsten Sprechen ersetzt
+{
+  const p3 = await ctx.newPage(); p3.on("pageerror", e => errs.push(String(e)));
+  await p3.addInitScript(() => {
+    window.__say = "Tockets für das Konzert kaufen, privat";
+    window.DafarVoice = { available: () => true, start: () => setTimeout(() => window.dafarVoiceResult(window.__say, ""), 30) };
+  });
+  await p3.goto("file://" + path.join(root, "dafar/dist/index.html")); await p3.waitForTimeout(200);
+  const get = () => p3.evaluate(() => JSON.parse(localStorage.getItem("dafar-tasks") || "[]"));
+  await p3.click("#mic"); await p3.waitForTimeout(200);
+  let v = (await get()).slice(-1)[0];
+  check("Gesprochene Aufgabe ist markiert", v.voice === true && v.text === "Tockets für das Konzert kaufen", JSON.stringify(v));
+  await p3.click('.tile2[data-view=privat]'); await p3.waitForTimeout(50);
+  await p3.locator(".task", { hasText: "Tockets" }).locator("[data-edit]").click(); await p3.waitForTimeout(50);
+  await p3.fill("#etext", "Tickets für das Konzert kaufen"); await p3.click("#esave"); await p3.waitForTimeout(50);
+  const k = await p3.evaluate(() => JSON.parse(localStorage.getItem("dafar-korrektur") || "{}"));
+  check("Korrektur wird gemerkt", k.tockets === "Tickets", JSON.stringify(k));
+  check("Hinweis „Gemerkt“ erscheint", (await p3.locator("#toastMsg").textContent()).includes("Tockets → Tickets"));
+  await p3.evaluate(() => { window.__say = "Tockets fürs Kino abholen, privat"; });
+  await p3.click("#mic"); await p3.waitForTimeout(200);
+  v = (await get()).slice(-1)[0];
+  check("Nächstes Mal wird das Wort ersetzt", v.text === "Tickets fürs Kino abholen", JSON.stringify(v));
+  // Umgeschriebener Inhalt wird nicht gelernt
+  await p3.locator(".task", { hasText: "Kino" }).locator("[data-edit]").click(); await p3.waitForTimeout(50);
+  await p3.fill("#etext", "Tickets fürs Theater abholen"); await p3.click("#esave"); await p3.waitForTimeout(50);
+  const k2 = await p3.evaluate(() => JSON.parse(localStorage.getItem("dafar-korrektur") || "{}"));
+  check("Andere Wörter werden nicht als Fehler gelernt", !k2.kino, JSON.stringify(k2));
+  // Liste ansehen, von Hand ergänzen und löschen
+  await p3.click("#korrBtn"); await p3.waitForTimeout(50);
+  check("Liste zeigt das gelernte Wort", (await p3.locator("#klist").textContent()).includes("Tickets"));
+  await p3.fill("#kfalsch", "Sali"); await p3.fill("#krichtig", "Salat"); await p3.click("#kadd"); await p3.waitForTimeout(50);
+  await p3.locator('[data-kdel="tockets"]').click(); await p3.waitForTimeout(50);
+  const k3 = await p3.evaluate(() => JSON.parse(localStorage.getItem("dafar-korrektur") || "{}"));
+  check("Von Hand hinzufügen und löschen", k3.sali === "Salat" && !k3.tockets, JSON.stringify(k3));
+  await p3.click("#kclose");
+  // Getippte Aufgaben werden nicht verändert
+  await p3.fill("#inp", "Sali kaufen privat"); await p3.click(".send"); await p3.waitForTimeout(50);
+  check("Getippter Text bleibt, wie er ist", (await get()).slice(-1)[0].text === "Sali kaufen", (await get()).slice(-1)[0].text);
+  await p3.close();
+}
+
 check("Keine Fehler in der App", errs.length === 0, errs.join(" | "));
 await b.close();
 console.log(`\n${passed} bestanden, ${failed} fehlgeschlagen`);
